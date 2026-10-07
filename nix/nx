@@ -1,0 +1,59 @@
+#!/bin/sh
+# Run Nix tooling: in a throw-away podman container (the Mac: nothing installed), or with
+# the Nix on the PATH (a CI runner). NX_NATIVE=1/0 forces one.
+#
+#   ./nx deploy --skip-checks .#lab-router-001     # inside `nix develop` (deploy, nixos-anywhere, ssh, ...)
+#   ./nx -r nix flake update            # -r: plain shell, no devShell
+#   ./nx -r sh                          # interactive shell
+#
+# Set by ./router: NX_SITES (the sites' vars), NX_KEYS (the sites' keys, only for the SSH
+# commands), DEPLOY_KEY (the site's deploy key), NX_KNOWN_HOSTS (the site's pinned host key
+# as a known_hosts line; empty: accepted on first use). The folders are mounted read-only at
+# the same paths, so commands use host paths either way. With DEPLOY_KEY, ~/.ssh is written
+# where ssh runs: in the container, or natively on a CI runner only (CI=true).
+# Podman state: volume `nixstore` (/nix). The image: Containerfile (NX_IMAGE overrides it).
+set -eu
+cd "$(dirname "$0")"
+RAW=0
+if [ "${1:-}" = "-r" ]; then RAW=1; shift; fi
+[ $# -gt 0 ] || { sed -n '2,7p' "$0"; exit 1; }
+[ -n "${NX_NATIVE:-}" ] || { command -v nix >/dev/null 2>&1 && NX_NATIVE=1 || NX_NATIVE=0; }
+if [ -n "${DEPLOY_KEY:-}" ] && [ ! -f "$DEPLOY_KEY" ]; then echo "nx: no deploy key at $DEPLOY_KEY" >&2; exit 1; fi
+
+# The SSH client setup, run where ssh runs (NX_KEY: the deploy key there). Only the pinned
+# host key is known; without one (an installer), the first key is accepted.
+# shellcheck disable=SC2016 # expanded by that shell
+SSH_SETUP='
+  if [ -n "${NX_KEY:-}" ]; then
+    mkdir -p -m 700 ~/.ssh && install -m 600 "$NX_KEY" ~/.ssh/id_deploy
+    printf "%s\n" "${NX_KNOWN_HOSTS:-}" > ~/.ssh/known_hosts
+    printf "Host *\n  IdentityFile ~/.ssh/id_deploy\n  IdentitiesOnly yes\n  StrictHostKeyChecking %s\n" \
+      "$([ -n "${NX_KNOWN_HOSTS:-}" ] && echo yes || echo accept-new)" > ~/.ssh/config
+  fi'
+
+if [ "$NX_NATIVE" = 1 ]; then
+  if [ -n "${DEPLOY_KEY:-}" ]; then
+    [ "${CI:-}" = true ] || { echo "nx: natively, SSH commands run on a CI runner only (they write ~/.ssh)" >&2; exit 1; }
+    NX_KEY=$DEPLOY_KEY NX_KNOWN_HOSTS="${NX_KNOWN_HOSTS:-}" sh -c "$SSH_SETUP"
+  fi
+  export NIX_CONFIG="${NIX_CONFIG:+$NIX_CONFIG
+}extra-experimental-features = nix-command flakes"
+  if [ "$RAW" = 1 ]; then exec "$@"; else exec nix develop . -c "$@"; fi
+fi
+
+MOUNTS=""
+[ -n "${NX_SITES:-}" ] && MOUNTS="-v $NX_SITES:$NX_SITES:ro"
+[ -n "${NX_KEYS:-}" ] && [ -d "$NX_KEYS" ] && MOUNTS="$MOUNTS -v $NX_KEYS:$NX_KEYS:ro"
+[ -n "${DEPLOY_KEY:-}" ] && MOUNTS="$MOUNTS -v $DEPLOY_KEY:/run/deploy-key:ro -e NX_KEY=/run/deploy-key"
+TTY=-i
+[ -t 0 ] && [ -t 1 ] && TTY=-it
+IMAGE=${NX_IMAGE:-$(podman build -q - < Containerfile)}
+
+# shellcheck disable=SC2086
+exec podman run --rm $TTY ${NX_PODMAN_ARGS:-} -v "$PWD":/work -w /work $MOUNTS \
+  -v nixstore:/nix -e NX_RAW="$RAW" -e NX_KNOWN_HOSTS="${NX_KNOWN_HOSTS:-}" \
+  -e NIX_CONFIG='experimental-features = nix-command flakes
+sandbox = false' \
+  "$IMAGE" sh -c "$SSH_SETUP"'
+    if [ "$NX_RAW" = 1 ]; then exec "$@"; else exec nix develop path:/work -c "$@"; fi
+  ' sh "$@"

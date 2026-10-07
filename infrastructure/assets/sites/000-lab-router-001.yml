@@ -1,0 +1,103 @@
+---
+# required site settings
+name: lab-router-001
+enabled: false
+
+# required hardware settings
+hardware:
+  profile: qemu
+  disk: /dev/sda
+
+# required network settings
+network:
+  domain: lab.internal.muehlbachler.io
+
+  wan:
+    mac: "bc:24:11:7b:62:b4"
+    interface: wan0
+    v4:
+      method: static
+      address: 10.100.0.60
+      netmask: 16
+      gateway: 10.100.0.1
+    v6:
+      method: static
+      address: "2a01:4f8:121:14e2:100::60"
+      netmask: 80
+      gateway: "2a01:4f8:121:14e2:100::1"
+
+  lan:
+    mac: "bc:24:11:f9:00:03"
+    interface: lan0
+    v4:
+      address: 10.60.0.1
+      netmask: 16
+      network: 10.60.0.0
+    v6:
+      address: "fd60:1ab:0:1::1"
+      netmask: 64
+      network: "fd60:1ab:0:1::"
+      public: false
+      supernet: "fd60:1ab::/48"
+
+  trustedNetworks:
+    v4:
+      - 10.0.0.0/8
+    v6:
+      - "fc00::/7"
+      - "2001:678:dc0::/48"
+    # the WAN is site 3's LAN (10.100.0.0/16)
+    wan: true
+
+  loopbacks:
+    - address: 10.60.255.1
+    - address: "fd60:1ab:0:ff::1"
+
+# required DHCP settings
+dhcp:
+  v4:
+    start: 10.60.150.1
+    end: 10.60.199.255
+  v6:
+    start: "fd60:1ab:0:1:e000::1"
+    end: "fd60:1ab:0:1:e000::ffff"
+
+# optional DNS settings
+dns:
+  # vie still runs OPNsense: its tunnel address
+  conditionalForwards:
+    vie.internal.muehlbachler.io: 10.254.1.2
+
+# optional firewall settings
+firewall:
+  forwards:
+    v4:
+      - proto: tcp
+        ports:
+          - 80
+          - 443
+        to: 10.60.0.20
+    v6:
+      - proto: tcp
+        ports:
+          - 80
+          - 443
+        to: "fd60:1ab:0:1::20"
+
+# optional observability settings
+observability:
+  monitoring:
+    prometheus:
+      enabled: true
+
+# optional transport settings
+transport:
+  netbird:
+    enabled: true
+
+# required BGP settings
+bgp:
+  enabled: true
+  asn: 201421
+  evpn:
+    enabled: true

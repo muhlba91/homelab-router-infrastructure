@@ -1,0 +1,4 @@
+---
+name: homelab-router-infrastructure
+description: "Homelab: Router Infrastructure"
+runtime: go

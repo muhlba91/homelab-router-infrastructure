@@ -1,0 +1,257 @@
+---
+# required site settings
+name: vie-router-001
+enabled: false
+
+# required hardware settings
+hardware:
+  # stand-in: the physical box (igc NICs, NVMe) needs its own profile
+  profile: qemu
+  disk: /dev/nvme0n1
+  # Eaton 5S1600 via USB; Home Assistant's NUT integration asks for tech-hub
+  ups:
+    enabled: true
+    name: tech-hub
+
+# required network settings
+network:
+  domain: vie.internal.muehlbachler.io
+
+  wan:
+    mac: "a8:b8:e0:03:40:bd"
+    interface: wan0
+    vlan: 31
+    # line: 275 Mbit/s upload (bufferbloat grade C: +112 ms under upload load)
+    shaping:
+      upload: 245M
+    v4:
+      method: dhcp
+    v6:
+      method: dhcp6
+
+  lan:
+    mac: "a8:b8:e0:03:40:be"
+    interface: lan0
+    v4:
+      address: 10.0.0.1
+      netmask: 16
+      network: 10.0.0.0
+    v6:
+      address: "2a01:aea0:dd3:25a::1"
+      netmask: 64
+      network: "2a01:aea0:dd3:25a::"
+      public: true
+      supernet: "2a01:aea0:dd3:25a::/64"
+
+  trustedNetworks:
+    v4:
+      - 10.0.0.0/8
+    v6:
+      - "fc00::/7"
+      - "2001:678:dc0::/48"
+
+  additionalRoutableNetworks:
+    - prefix: "2001:678:dc0:100::/56"
+      anchor: "2001:678:dc0:100::1"
+
+# required DHCP settings
+dhcp:
+  v4:
+    start: 10.0.150.1
+    end: 10.0.199.255
+  v6:
+    start: "2a01:aea0:dd3:25a:e000::1"
+    end: "2a01:aea0:dd3:25a:e000::ffff"
+  reservations:
+    - hostname: omada-living-room
+      mac: "8c:90:2d:cc:6d:dc"
+      v4: 10.0.21.11
+    - hostname: omada-office
+      mac: "5c:62:8b:ce:b3:d4"
+      v4: 10.0.21.12
+    - hostname: tedee-bridge
+      mac: "94:c9:60:32:99:a6"
+      v4: 10.0.100.1
+    - hostname: ring-chime
+      mac: "34:3e:a4:00:19:e1"
+      v4: 10.0.101.1
+    - hostname: ring-doorbell
+      mac: "54:e0:19:f3:02:97"
+      v4: 10.0.101.2
+    - hostname: ring-alarm-base
+      mac: "b0:09:da:32:14:67"
+      v4: 10.0.101.3
+    - hostname: ring-indoor-cam-1
+      mac: "54:e0:19:a9:46:4e"
+      v4: 10.0.101.4
+    - hostname: amazon-echo-show-office
+      mac: "10:96:93:7d:4f:e0"
+      v4: 10.0.110.1
+    - hostname: amazon-echo-dot-clock-living-room
+      mac: "c8:6c:3d:0a:46:b4"
+      v4: 10.0.110.2
+    - hostname: amazon-echo-dot-bathroom
+      mac: "3a:af:b3:8a:57:3f"
+      v4: 10.0.110.3
+    - hostname: amazon-echo-show-living-room
+      mac: "94:3a:91:24:b1:de"
+      v4: 10.0.110.4
+    - hostname: onyx
+      mac: "84:85:0a:00:0a:4c"
+      v4: 10.0.111.1
+      duid: "00:02:00:00:ab:11:21:d7:59:d6:f5:1f:73:9b"
+      v6: "2a01:aea0:dd3:25a:2000:2:2:1"
+    - hostname: pv-inverter
+      mac: "6c:1d:eb:6d:00:c9"
+      v4: 10.0.111.2
+    - hostname: energy-meter
+      mac: "58:cf:79:9b:4b:da"
+      v4: 10.0.111.3
+    - hostname: denon-living-room
+      mac: "00:05:cd:c6:cf:0e"
+      v4: 10.0.120.1
+    - hostname: apple-tv-living-room
+      mac: "a8:51:ab:15:c3:98"
+      v4: 10.0.120.2
+      duid: "00:01:00:01:2c:84:b9:ef:a8:51:ab:15:c3:98"
+      v6: "2a01:aea0:dd3:25a:2000:3:1:2"
+    - hostname: xiaomi-mi-projector
+      mac: "20:50:e7:03:b9:82"
+      v4: 10.0.120.3
+    - hostname: brother-printer
+      mac: "44:f7:9f:1b:42:de"
+      v4: 10.0.130.1
+    - hostname: ring-outdoor-cam-1
+      mac: "20:d7:78:ad:af:19"
+      v4: 10.0.101.5
+    - hostname: home-cluster-001
+      mac: "e4:1d:98:8e:08:08"
+      v4: 10.0.50.1
+    - hostname: multisensor-esp32-s3-devboard
+      mac: "7c:df:a1:e2:d7:28"
+      v4: 10.0.110.10
+    - hostname: nanokvm-talos
+      mac: "48:da:35:6f:50:87"
+      v4: 10.0.30.1
+    - hostname: nanokvm-talos-wifi
+      mac: "c4:3c:b0:67:5c:04"
+      v4: 10.0.30.2
+    - hostname: reolink-living-room
+      mac: "0c:91:60:be:97:fe"
+      v4: 10.0.102.1
+    - hostname: roborock-upstairs
+      mac: "24:9e:7d:43:d1:b3"
+      v4: 10.0.113.1
+    - hostname: shelly-plug-office-tech
+      mac: "e4:65:b8:b2:e5:5c"
+      v4: 10.0.112.2
+    - hostname: shelly-plug-office-desk-daniel
+      mac: "e4:65:b8:b2:ce:68"
+      v4: 10.0.112.3
+    - hostname: shelly-plug-living-room-tech
+      mac: "e4:65:b8:45:05:f8"
+      v4: 10.0.112.5
+    - hostname: shelly-plug-living-room-media
+      mac: "e8:6b:ea:ed:74:d8"
+      v4: 10.0.112.6
+    - hostname: shelly-plug-office-desk-kasia
+      mac: "e8:6b:ea:ed:76:88"
+      v4: 10.0.112.4
+    - hostname: shelly-plug-temp
+      mac: "e8:6b:ea:eb:66:64"
+      v4: 10.0.112.1
+    - hostname: reolink-doorbell
+      mac: "18:2c:65:d7:0e:d7"
+      v4: 10.0.102.2
+    - hostname: reolink-garden
+      mac: "b0:6b:11:89:4b:3e"
+      v4: 10.0.102.3
+    - hostname: roborock-downstairs
+      mac: "24:9e:7d:18:6a:c0"
+      v4: 10.0.113.2
+    - hostname: apple-tv-tea-room
+      mac: "8c:26:aa:e9:25:b0"
+      v4: 10.0.120.4
+    - hostname: tv-tea-room
+      mac: "14:ea:63:f6:dd:1b"
+      v4: 10.0.120.6
+    - hostname: shelly-ht-office
+      mac: "54:32:04:53:b2:f8"
+      v4: 10.0.112.7
+    - hostname: shelly-ht-living-room
+      mac: "54:32:04:57:a2:b0"
+      v4: 10.0.112.8
+    - hostname: shelly-ht-bedroom
+      mac: "b0:81:84:ee:91:a4"
+      v4: 10.0.112.9
+    - hostname: ecowitt-gw3000
+      mac: "6c:c8:40:3b:97:d4"
+      v4: 10.0.111.4
+    - hostname: reolink-front-door
+      mac: "ec:71:db:f5:89:3b"
+      v4: 10.0.102.4
+    - hostname: shelly-ht-tearoom
+      mac: "90:70:69:5b:50:10"
+      v4: 10.0.112.10
+    - hostname: hp-printer
+      duid: "00:03:00:01:30:e1:71:b0:64:a3"
+      v6: "2a01:aea0:dd3:25a:2000:4:1:1"
+
+# optional DNS settings
+dns:
+  conditionalForwards:
+    muc.internal.muehlbachler.io: 10.255.1.2
+    bhs.ovh.internal.muehlbachler.io: 10.51.0.1
+
+# optional firewall settings
+firewall:
+  forwards:
+    v4:
+      - proto: tcp
+        ports:
+          - 80
+          - 443
+        to: 10.0.72.2
+  # the LAN prefix is public: the cluster ingress is reached directly, without DNAT
+  extraForwardRules: |
+    ip6 daddr 2a01:aea0:dd3:25a:1000:3:3:2 tcp dport { 80, 443 } accept
+
+# optional observability settings
+observability:
+  monitoring:
+    prometheus:
+      enabled: true
+      exporters:
+        - node
+        - kea
+        - frr
+        - smartctl
+        - crowdsec
+        - nut
+  logging:
+    vector:
+      enabled: true
+      # the cluster's Vector (VIP; IPv6: [fc00:db8:111::200:1]:6000)
+      address: 10.111.200.1:6000
+
+# optional transport settings
+transport:
+  netbird:
+    enabled: true
+
+# required BGP settings
+bgp:
+  enabled: true
+  asn: 201421
+  evpn:
+    enabled: true
+  # transit: never for a neighbor that is itself a site (it would re-announce that site's prefixes: a loop)
+  peers:
+    - name: home-cluster
+      address: "2a01:aea0:dd3:25a:1000:1:1:1"
+      remoteAs: 64551
+      interface: lan0
+      disableConnectedCheck: true
+      nextHopSelf: true
+      outPolicy: deny-all
+      transit: true

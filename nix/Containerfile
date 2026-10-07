@@ -1,0 +1,3 @@
+# The image ./nx runs Nix in, built by ./nx on every call (cached; no build context). Keep it
+# to FROM: tools belong in the flake's devShell (CI runs without this container). Updated by Renovate.
+FROM docker.io/nixos/nix:2.35.2@sha256:7a007c766426c1877758ddc5cb87a965ac131fc78c582ce0083d922d51ae945c

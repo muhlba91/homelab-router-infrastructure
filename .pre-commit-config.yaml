@@ -1,0 +1,48 @@
+---
+repos:
+  - repo: https://github.com/talos-systems/conform
+    rev: v0.1.0-alpha.30
+    hooks:
+      - id: conform
+        stages:
+          - commit-msg
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-json
+        exclude: .eslintrc.json|node_modules/*
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: detect-aws-credentials
+        args: [
+            "--allow-missing-credentials"
+        ]
+      - id: detect-private-key
+        exclude: node_modules/*
+#      - id: no-commit-to-branch
+#        args: [
+#            "--branch",
+#            "main",
+#            "--branch",
+#            "next"
+#        ]
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+  # The Go module lives in infrastructure/ (the upstream hook runs at the repository root);
+  # the installed golangci-lint, like `make lint` and CI (latest), supports the module's Go version.
+  - repo: local
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        language: system
+        entry: sh -c 'cd infrastructure && golangci-lint run -c .golangci.yml'
+        files: ^infrastructure/.*\.go$
+        pass_filenames: false
+        require_serial: true
