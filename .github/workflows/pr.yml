@@ -1,0 +1,399 @@
+---
+name: Pull Request
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conform:
+    runs-on: ubuntu-latest
+    name: Conform
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: siderolabs/conform@cfdb3cce90daece912e6a5cb3f20b2316a78a5bf # v0.1.0-alpha.31
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  yamllint:
+    runs-on: ubuntu-latest
+    name: YAMLLint
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - run: yamllint .
+
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint
+    strategy:
+      max-parallel: 4
+      matrix:
+        go-version: [1.27.x]
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "${{ matrix.go-version }}"
+          cache-dependency-path: infrastructure/go.sum
+
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: latest
+          working-directory: infrastructure
+          args: -c .golangci.yml
+          skip-cache: true
+          skip-save-cache: true
+
+      - run: |
+          go vet ./...
+        working-directory: infrastructure
+
+  test:
+    runs-on: ubuntu-latest
+    name: Unit Tests
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+    strategy:
+      max-parallel: 4
+      matrix:
+        go-version: [1.27.x]
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "${{ matrix.go-version }}"
+          cache-dependency-path: infrastructure/go.sum
+
+      - run: |
+          make test
+        working-directory: infrastructure
+        env:
+          RENDER_DIR: ${{ github.workspace }}/render
+
+      - run: |
+          go install github.com/mattn/goveralls@latest
+          goveralls -coverprofile=covprofile -service=github
+        working-directory: infrastructure
+        env:
+          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sites-test
+          path: render/outputs/sites/
+          if-no-files-found: error
+          retention-days: 1
+
+      # The checks of the rendered site files (named by flake checks.nix): the deploy nodes and one per site.
+      - run: |
+          echo "checks=$(find render/outputs/sites -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | jq -Rnc '["deploy-schema"] + [inputs | "site-" + .]')" >> "$GITHUB_OUTPUT"
+        id: checks
+
+  nix-list-checks:
+    runs-on: ubuntu-latest
+    name: List Nix Checks
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          echo "checks=$(nix eval --json .#checks.x86_64-linux --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
+        id: checks
+        working-directory: nix
+
+  nix-checks:
+    runs-on: ubuntu-latest
+    name: Nix Check
+    needs:
+      - nix-list-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.nix-list-checks.outputs.checks) }}
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#checks.x86_64-linux.$CHECK"
+        working-directory: nix
+        env:
+          CHECK: ${{ matrix.check }}
+
+  preview:
+    runs-on: ubuntu-latest
+    name: Pulumi Preview
+    needs:
+      - conform
+      - yamllint
+      - lint
+      - test
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+    strategy:
+      max-parallel: 4
+      matrix:
+        go-version: [1.27.x]
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "${{ matrix.go-version }}"
+          cache-dependency-path: infrastructure/go.sum
+
+      - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        id: import-secrets
+        with:
+          method: jwt
+          url: ${{ secrets.VAULT_ADDR }}
+          path: ${{ secrets.VAULT_PATH }}
+          role: ${{ secrets.VAULT_ROLE }}
+          exportToken: true
+          outputToken: true
+          secrets: |
+            github-homelab-router-infrastructure/data/google-cloud region | CLOUDSDK_COMPUTE_REGION ;
+            github-homelab-router-infrastructure/data/google-cloud workload_identity_provider | GOOGLE_WORKLOAD_IDENTITY_PROVIDER ;
+            github-homelab-router-infrastructure/data/google-cloud ci_service_account | GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT ;
+            github-homelab-router-infrastructure/data/scaleway organization_id | SCW_ORGANIZATION_ID ;
+            github-homelab-router-infrastructure/data/scaleway project_id | SCW_PROJECT_ID ;
+            github-homelab-router-infrastructure/data/scaleway region | SCW_DEFAULT_REGION ;
+            github-homelab-router-infrastructure/data/scaleway zone | SCW_DEFAULT_ZONE ;
+            github-homelab-router-infrastructure/data/scaleway access_key | SCW_ACCESS_KEY ;
+            github-homelab-router-infrastructure/data/scaleway secret_key | SCW_SECRET_KEY ;
+            github-homelab-router-infrastructure/data/scaleway region | AWS_REGION ;
+            github-homelab-router-infrastructure/data/scaleway access_key | AWS_ACCESS_KEY_ID ;
+            github-homelab-router-infrastructure/data/scaleway secret_key | AWS_SECRET_ACCESS_KEY
+
+      - uses: pulumi/auth-actions@141415910c3beb54e03b48e9057c204c97b956f2 # v2.1.0
+        with:
+          organization: muhlba91
+          requested-token-type: urn:pulumi:token-type:access_token:personal
+          scope: user:muhlba91
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ env.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT }}
+
+      - uses: pulumi/actions@8e5e406f4007fca908480587cb9893c07090f58d # v7
+        with:
+          command: preview
+          work-dir: infrastructure
+          stack-name: prod
+          comment-on-pr: true
+          refresh:
+            ${{ github.event.pull_request.head.repo.full_name == github.repository
+            }}
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      # The routers' data before (the bucket: the last `pulumi up`) and after (the preview) this pull request.
+      - run: |
+          aws s3 cp --recursive --only-show-errors --endpoint-url "https://s3.$AWS_REGION.scw.cloud" \
+            "s3://$(yq '.config."homelab-router-infrastructure:bucketId"' Pulumi.prod.yaml)/router-infrastructure/prod/sites/" live/
+          diff -ru live outputs/sites > vars.diff || true
+          {
+            echo "### Router data (\`vars.nix\`): last \`pulumi up\` -> this pull request"
+            echo "A site missing in \`outputs/sites\` is not rendered by the preview (e.g. a new site: its keys exist after \`pulumi up\`)."
+            echo '```diff'
+            head -c 60000 vars.diff
+            echo '```'
+          } > vars.md
+        working-directory: infrastructure
+
+      - uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: router-vars
+          path: infrastructure/vars.md
+
+      # outputs/keys/ holds the real keys and secrets after a preview: only sites/ may be uploaded.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sites-preview
+          path: infrastructure/outputs/sites/
+          if-no-files-found: error
+          retention-days: 1
+
+      # The checks of the rendered site files (named by flake checks.nix): the deploy nodes and one per site.
+      - run: |
+          echo "checks=$(find infrastructure/outputs/sites -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | jq -Rnc '["deploy-schema"] + [inputs | "site-" + .]')" >> "$GITHUB_OUTPUT"
+        id: checks
+
+  nix-test:
+    runs-on: ubuntu-latest
+    name: Nix Test
+    needs:
+      - test
+      - nix-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.test.outputs.checks) }}
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sites-test
+          path: sites
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#checks.x86_64-linux.$CHECK" --override-input sites path:../sites
+        working-directory: nix
+        env:
+          CHECK: ${{ matrix.check }}
+
+  nix-build:
+    runs-on: ubuntu-latest
+    name: Nix Build
+    needs:
+      - test
+      - nix-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        site:
+          - lab-router-001
+    env:
+      SITE: ${{ matrix.site }}
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sites-test
+          path: sites
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#nixosConfigurations.$SITE.config.system.build.toplevel" --override-input sites path:../sites
+        working-directory: nix
+
+  nix-preview:
+    runs-on: ubuntu-latest
+    name: Nix Preview
+    needs:
+      - preview
+      - nix-checks
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.preview.outputs.checks) }}
+
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sites-preview
+          path: sites
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: |
+          nix build -L --no-link ".#checks.x86_64-linux.$CHECK" --override-input sites path:../sites
+        working-directory: nix
+        env:
+          CHECK: ${{ matrix.check }}

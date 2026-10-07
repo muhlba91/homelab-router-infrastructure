@@ -1,0 +1,85 @@
+---
+# required site settings
+name: ovh-bhs-router-001
+enabled: true
+
+# required hardware settings
+hardware:
+  profile: qemu
+  disk: /dev/sda
+
+# required network settings
+network:
+  domain: bhs.ovh.internal.muehlbachler.io
+
+  # transfer net to the Proxmox host, which DNATs all public traffic (but its SSH/UI) to us
+  wan:
+    mac: "bc:24:11:5e:a0:fc"
+    interface: wan0
+    v4:
+      method: static
+      address: 10.50.0.1
+      netmask: 31
+      gateway: 10.50.0.0
+      # the Proxmox host's management, reachable from the other sites
+      announce: true
+    v6:
+      method: static
+      address: "fd80:8a2:fd5a::1"
+      netmask: 127
+      gateway: "fd80:8a2:fd5a::"
+      announce: true
+
+  lan:
+    mac: "bc:24:11:a7:8b:3e"
+    interface: lan0
+    v4:
+      address: 10.51.0.1
+      netmask: 16
+      network: 10.51.0.0
+    v6:
+      address: "fd9a:7707:457d::1"
+      netmask: 48
+      network: "fd9a:7707:457d::"
+      public: false
+      supernet: "fd9a:7707:457d::/48"
+
+  trustedNetworks:
+    v4:
+      - 10.0.0.0/8
+    v6:
+      - "fc00::/7"
+      - "2001:678:dc0::/48"
+    # the WAN is the transfer net to the Proxmox host
+    wan: true
+
+  additionalRoutableNetworks:
+    - prefix: "2001:678:dc0:300::/56"
+      anchor: "2001:678:dc0:300::1"
+
+# required DHCP settings
+dhcp:
+  v4:
+    start: 10.51.150.1
+    end: 10.51.199.255
+  v6:
+    start: "fd9a:7707:457d:1::1"
+    end: "fd9a:7707:457d:1::ffff"
+
+# optional DNS settings
+dns:
+  # vie still runs OPNsense: its tunnel address
+  conditionalForwards:
+    vie.internal.muehlbachler.io: 10.254.1.2
+
+# optional transport settings
+transport:
+  netbird:
+    enabled: true
+
+# required BGP settings
+bgp:
+  enabled: true
+  asn: 201421
+  evpn:
+    enabled: true

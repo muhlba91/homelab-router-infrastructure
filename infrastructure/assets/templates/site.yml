@@ -1,0 +1,192 @@
+---
+# required site settings
+# the file is named after the site, optionally prefixed with its deploy order: [<order>-]<name>.yml
+# (categories: 0xx test systems, 1xx OVH, 2xx Hetzner, 9xx physical sites)
+name: site
+enabled: false
+
+# required hardware settings
+hardware:
+  # a file in nix/hardware/: qemu (any x86_64 VM, BIOS or UEFI)
+  profile: qemu
+  disk: /dev/sda
+  # optional: a UPS on the router (NUT; the password is generated into secrets/nut-password)
+  ups:
+    enabled: false
+    # name: ups
+    # driver: usbhid-ups
+    # port: auto
+
+# optional system settings
+system:
+  # 0s = off; needs a watchdog device (Proxmox q35: built in; none, e.g. a cloud VM: 0s)
+  watchdog: 60s
+  gc:
+    olderThan: 7d
+    keep: 3
+
+# required network settings
+network:
+  domain: site.internal.example
+  # managementAddress: 10.46.0.1
+
+  # NICs are renamed by MAC: a wrong MAC locks the router out
+  wan:
+    mac: "00:00:00:00:00:01"
+    interface: wan0
+    # vlan: 31
+    # slightly below the line's upload rate; unset = no shaping
+    # shaping:
+    #   upload: 45M
+    v4:
+      method: static
+      address: 203.0.113.10
+      netmask: 24
+      gateway: 203.0.113.1
+      announce: false
+    v6:
+      method: static
+      address: "2001:db8:1::10"
+      netmask: 64
+      gateway: "2001:db8:1::1"
+      # only a ULA WAN network can be announced
+      announce: false
+
+  lan:
+    mac: "00:00:00:00:00:02"
+    interface: lan0
+    v4:
+      address: 10.46.0.1
+      netmask: 16
+      network: 10.46.0.0
+    v6:
+      address: "fdaf:460f:42de:1::1"
+      netmask: 64
+      network: "fdaf:460f:42de:1::"
+      # true for an ISP prefix (no NAT66, not announced in BGP); false for a ULA prefix (NAT66, announced)
+      public: false
+      supernet: "fdaf:460f:42de::/48"
+
+  trustedNetworks:
+    v4:
+      - 10.0.0.0/8
+    v6:
+      - "fc00::/7"
+    # never for an internet WAN: these sources could be spoofed there
+    wan: false
+
+  # public IPv6 prefixes routed to the site (anchored on the router, announced)
+  additionalRoutableNetworks: []
+    # - prefix: "2001:db8:100::/56"
+    #   anchor: "2001:db8:100::1"
+
+  loopbacks: []
+    # - address: 10.46.255.1
+    #   announce: true
+
+# required DHCP settings
+dhcp:
+  v4:
+    start: 10.46.150.1
+    end: 10.46.199.255
+  v6:
+    start: "fdaf:460f:42de:1:e000::1"
+    end: "fdaf:460f:42de:1:e000::ffff"
+  reservations: []
+    # - hostname: host
+    #   mac: "02:00:00:00:00:01"
+    #   v4: 10.46.21.11
+    # - hostname: host6
+    #   duid: "00:02:00:00:ab:11:00:00:00:00:00:00:00:01"
+    #   v6: "fdaf:460f:42de:1:2000::1"
+
+# optional DNS settings
+dns:
+  conditionalForwards: {}
+    # other.internal.example: 10.164.0.1
+  # values are not escaped for Nix: double a backslash (regex rules: /ads\\d+\\.example/)
+  extraRules: []
+    # - "@@||example.org^$important"
+
+# optional firewall settings
+firewall:
+  forwards:
+    v4: []
+      # - proto: tcp
+      #   ports:
+      #     - 80
+      #     - 443
+      #   to: 10.46.0.20
+      #   from:
+      #     - 192.0.2.0/24
+    v6: []
+      # - proto: tcp
+      #   ports:
+      #     - 443
+      #   to: "fdaf:460f:42de:1::20"
+  services: {}
+    # ssh:
+    #   enabled: true
+    #   proto: tcp
+    #   ports:
+    #     - 22
+    #   from:
+    #     - lan
+    #     - trusted
+  extraInputRules: ""
+  extraForwardRules: ""
+  logDrops:
+    enabled: true
+    rate: 5/second
+    burst: 20
+
+# optional security settings
+security:
+  crowdsec:
+    enabled: true
+    banDuration: 4h
+
+# optional observability settings
+observability:
+  monitoring:
+    prometheus:
+      enabled: false
+      # smartctl: physical disks only; crowdsec: needs security.crowdsec; nut: needs hardware.ups
+      exporters:
+        - node
+        - kea
+        - frr
+        - crowdsec
+  logging:
+    vector:
+      enabled: false
+      # address: 10.46.0.10:6000
+
+# optional transport settings
+transport:
+  netbird:
+    enabled: false
+    port: 51820
+    mtu: 1420
+
+# required BGP settings
+bgp:
+  enabled: true
+  asn: 64923
+  evpn:
+    enabled: false
+  # transit: never for a neighbor that is itself a site (it would re-announce that site's prefixes: a loop)
+  peers: []
+    # - name: cluster
+    #   address: "fdaf:460f:42de:1::100"
+    #   remoteAs: 64737
+    #   interface: lan0
+    #   bfd: false
+    #   disableConnectedCheck: false
+    #   nextHopSelf: false
+    #   multihop: 2
+    #   v4: true
+    #   v6: true
+    #   inPolicy: strict
+    #   outPolicy: strict
+    #   transit: false

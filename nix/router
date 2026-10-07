@@ -1,0 +1,131 @@
+#!/bin/sh
+# Fleet commands. Stage 2 of the Pulumi -> NixOS chain: Pulumi renders
+#   $OUTPUTS/sites/<site>/vars.nix          the data (no secrets; the flake's `sites` input)
+#   $OUTPUTS/keys/<site>/deploy-key         private SSH key of the `deploy` user (stays on this machine)
+#   $OUTPUTS/keys/<site>/secrets/<name>     secret files for the router (e.g. netbird-setup-key)
+# and ends; everything below runs from there, through ./nx (podman).
+#
+#   ./router sites                       list sites (in deploy order) + whether they are deployable
+#   ./router check                       flake checks: lint, deploy schema, eval tests, every site (nft, radvd, kea)
+#   ./router fmt                         format all .nix files (nixfmt, the flake's formatter)
+#   ./router dump <site>                 evaluated config as JSON (diff before/after a refactor)
+#   ./router push-secrets <site>         deliver $OUTPUTS/keys/<site>/secrets/ to the router
+#   ./router deploy <site> [deploy args] push secrets, then deploy-rs (magic rollback); without
+#                                        args, skipped if the router already runs this system
+#   ./router health <site>               failed units, BGP sessions, pending reboot (warning)
+#   ./router install <site> <ip>         first install: nixos-anywhere (+ secrets)
+#   ./router ssh <site> [command]        SSH as `deploy` to the site's mgmt address with its key
+#
+# OUTPUTS=<dir> selects the site data (default ../infrastructure/outputs, written by Pulumi);
+# any folder of the same layout works. Without site data: the fixtures in tests/sites.
+set -eu
+cd "$(dirname "$0")"
+usage() { sed -n '2,20p' "$0"; exit 1; }
+die() { echo "router: $*" >&2; exit 1; }
+SECRETS_DIR=/var/lib/secrets # must match modules/secrets.nix
+
+OVERRIDE=""
+if [ -d "${OUTPUTS:-../infrastructure/outputs}/sites" ]; then
+  OUTPUTS=$(cd "${OUTPUTS:-../infrastructure/outputs}" && pwd)
+  case "$OUTPUTS/" in "$PWD"/*) die "OUTPUTS must be outside nix/ (it holds keys; nix/ is copied into the Nix store)" ;; esac
+  # sites/ is copied into the Nix store as a whole: refuse anything but <site>/ folders
+  # holding a regular file vars.nix.
+  S="$OUTPUTS/sites"
+  stray=$(find "$S" -mindepth 1 \( -path "$S/*/*/*" -o -path "$S/*/*" ! -path "$S/*/vars.nix" -o -path "$S/*/vars.nix" ! -type f -o ! -path "$S/*/*" ! -type d \))
+  [ -z "$stray" ] || die "only <site>/vars.nix may be in $S (it enters the Nix store):
+$stray"
+  export NX_SITES="$S"
+  OVERRIDE="--override-input sites path:$S"
+elif [ -n "${OUTPUTS:-}" ]; then
+  die "no site data at $OUTPUTS/sites"
+else
+  echo "router: no site data (run pulumi up, or set OUTPUTS): using the fixtures in tests/sites" >&2
+fi
+
+# nix eval: stdout; stderr only on failure (--override-input always prints a lock warning).
+ev() {
+  err=$(mktemp)
+  # shellcheck disable=SC2086
+  ./nx -r nix eval $OVERRIDE "$@" 2>"$err" || { cat "$err" >&2; exit 1; }
+  rm -f "$err"
+}
+# A deployable site for the SSH commands: sets MGMT and hands its keys and pinned host key
+# (a known_hosts line) to ./nx. The flake output `routerTarget.<site>` (deployable sites
+# only) is "<mgmt address>[ <host key>]".
+target() {
+  [ -n "$OVERRIDE" ] || die "no site data (the fixtures are not deployable)"
+  t=$(ev --raw ".#routerTarget.\"$1\"") || die "no deployable site '$1'"
+  MGMT=${t%% *}
+  known=""; [ "$t" = "$MGMT" ] || known=$t
+  export NX_KEYS="$OUTPUTS/keys" DEPLOY_KEY="$OUTPUTS/keys/$1/deploy-key" NX_KNOWN_HOSTS="$known"
+}
+
+push_secrets() {
+  src="$OUTPUTS/keys/$1/secrets"
+  if [ ! -d "$src" ]; then echo "router: no $src, nothing to push"; return 0; fi
+  echo "router: pushing $src -> deploy@$MGMT:$SECRETS_DIR"
+  # secrets-sync.sh travels with the push (base64: no quoting through the container and SSH).
+  sync=$(base64 <secrets-sync.sh | tr -d '\n')
+  ./nx -r sh -c "tar -C $src -cf - . | ssh deploy@$MGMT 'sudo sh -c \"\$(echo $sync | base64 -d)\" sh $SECRETS_DIR ${2:-}'"
+}
+
+cmd=${1:-}; site=${2:-}
+case "$cmd" in sites | check | fmt) ;; *) [ -n "$site" ] || usage; shift 2 ;; esac
+case "$cmd" in
+  sites)
+    ev --raw .#routerSites ;;
+  check)
+    # shellcheck disable=SC2086
+    ./nx -r nix flake check -L --keep-going $OVERRIDE || die "checks failed" ;;
+  fmt)
+    ./nx -r nix fmt ;;
+  dump)
+    ev --json ".#routerDump.\"$site\"" ;;
+  push-secrets)
+    target "$site"; push_secrets "$site" ;;
+  deploy)
+    target "$site"
+    case " $* " in *" --dry-activate "*) dry=1 ;; *) dry=0 ;; esac
+    if [ $# -eq 0 ]; then
+      want=$(ev --raw ".#nixosConfigurations.\"$site\".config.system.build.toplevel.outPath")
+      have=$(./nx -r ssh "deploy@$MGMT" readlink /run/current-system)
+      if [ "$want" = "$have" ]; then push_secrets "$site" prune; echo "router: $site already runs $want"; exit 0; fi
+    fi
+    if [ "$dry" = 1 ]; then echo "router: dry run, secrets not pushed"; else push_secrets "$site"; fi
+    # --skip-checks: `./router check` is the gate (deploy-rs would rerun every check).
+    # shellcheck disable=SC2086
+    ./nx deploy --skip-checks ".#$site" "$@" -- $OVERRIDE
+    # Only after the deploy: a rollback may still need them.
+    [ "$dry" = 1 ] || push_secrets "$site" prune ;;
+  ssh)
+    target "$site"
+    exec ./nx -r ssh "deploy@$MGMT" "$@" ;;
+  health)
+    target "$site"
+    exec ./nx -r ssh "deploy@$MGMT" sudo router-health ;;
+  install)
+    ip=${1:-}; [ -n "$ip" ] || usage
+    target "$site"
+    export NX_KNOWN_HOSTS="" # the installer's host key is not the router's
+    echo "router: first install of '$site' on root@$ip (wipes the target disk)"
+    # nixos-anywhere cannot take --override-input (and re-locks an override that differs
+    # from flake.nix), so a temporary copy of the flake points the `sites` input itself at
+    # the site data and is installed from. The secrets tree becomes --extra-files (owned by
+    # root; the activation guard applies owner/mode).
+    src="$OUTPUTS/keys/$site/secrets"
+    ./nx sh -c "
+      set -e
+      rm -rf /tmp/fl /tmp/extra && cp -a /work /tmp/fl && cd /tmp/fl
+      grep -q 'url = \"path:./tests/sites\";' flake.nix
+      sed -i 's|url = \"path:./tests/sites\";|url = \"path:$NX_SITES\";|' flake.nix
+      nix flake lock
+      X=''
+      if [ -d $src ]; then
+        mkdir -p /tmp/extra$SECRETS_DIR && cp -a $src/. /tmp/extra$SECRETS_DIR/
+        chmod 0711 /tmp/extra$SECRETS_DIR && chmod 0600 /tmp/extra$SECRETS_DIR/*
+        X='--extra-files /tmp/extra'
+      fi
+      nixos-anywhere --flake /tmp/fl#$site --build-on remote --phases disko,install,reboot \$X --target-host root@$ip" ;;
+  *)
+    usage ;;
+esac
