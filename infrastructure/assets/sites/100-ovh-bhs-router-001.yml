@@ -54,8 +54,8 @@ network:
     wan: true
 
   additionalRoutableNetworks:
-    - prefix: "2001:678:dc0:300::/56"
-      anchor: "2001:678:dc0:300::1"
+    - prefix: "2001:678:dc0:200::/56"
+      anchor: "2001:678:dc0:200::1"
 
 # required DHCP settings
 dhcp:
@@ -68,9 +68,9 @@ dhcp:
 
 # optional DNS settings
 dns:
-  # vie still runs OPNsense: its tunnel address
   conditionalForwards:
     vie.internal.muehlbachler.io: 10.254.1.2
+    fra.hetzner.internal.muehlbachler.io: 10.100.0.1
 
 # optional transport settings
 transport:

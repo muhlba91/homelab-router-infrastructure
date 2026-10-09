@@ -1,0 +1,147 @@
+---
+# required site settings
+name: hetzner-fra-router-001
+enabled: false
+
+# required hardware settings
+hardware:
+  profile: qemu
+  disk: /dev/sda
+
+# required network settings
+network:
+  domain: fra.hetzner.internal.muehlbachler.io
+
+  # transfer net to the Proxmox host (single public IPv4, DNATs everything but its SSH/UI to us;
+  # the host routes the LAN /80 of its public IPv6 /64 to the router)
+  wan:
+    mac: "bc:24:11:68:6b:07"
+    interface: wan0
+    v4:
+      method: static
+      address: 10.10.0.1
+      netmask: 31
+      gateway: 10.10.0.0
+      # the Proxmox host's management, reachable from the other sites
+      announce: true
+    v6:
+      method: static
+      address: "2a01:4f8:121:14e2:2::1337"
+      netmask: 127
+      gateway: "2a01:4f8:121:14e2:2::1336"
+      # a public network cannot be announced
+
+  # public IPv6 (a /80 of the Proxmox host's /64): no NAT66, not announced
+  lan:
+    mac: "bc:24:11:f2:31:f7"
+    interface: lan0
+    v4:
+      address: 10.100.0.1
+      netmask: 16
+      network: 10.100.0.0
+    v6:
+      address: "2a01:4f8:121:14e2:100::1"
+      netmask: 80
+      network: "2a01:4f8:121:14e2:100::"
+      public: true
+      supernet: "2a01:4f8:121:14e2:100::/80"
+
+  trustedNetworks:
+    v4:
+      - 10.0.0.0/8
+    v6:
+      - "fc00::/7"
+      - "2001:678:dc0::/48"
+    # the WAN is the transfer net to the Proxmox host
+    wan: true
+
+  additionalRoutableNetworks:
+    - prefix: "2001:678:dc0:300::/56"
+      anchor: "2001:678:dc0:300::1"
+
+# required DHCP settings
+dhcp:
+  v4:
+    start: 10.100.150.1
+    end: 10.100.199.255
+  v6:
+    start: "2a01:4f8:121:14e2:100:1::1"
+    end: "2a01:4f8:121:14e2:100:1::ffff"
+  reservations:
+    - hostname: hetzner-fra-cluster-001
+      mac: "bc:24:11:fb:c4:df"
+      v4: 10.100.50.1
+
+# optional DNS settings
+dns:
+  conditionalForwards:
+    vie.internal.muehlbachler.io: 10.254.1.2
+    bhs.ovh.internal.muehlbachler.io: 10.51.0.1
+
+# optional firewall settings
+firewall:
+  forwards:
+    v4:
+      - proto: tcp
+        ports:
+          - 80
+          - 443
+        to: 10.100.72.2
+      - proto: tcp
+        ports:
+          - 8000
+          - 8443
+        to: 10.100.72.3
+  # the LAN prefix is public: the cluster ingress is reached directly, without DNAT
+  extraForwardRules: |
+    ip6 daddr 2a01:4f8:121:14e2:100:3:3:2 tcp dport { 80, 443 } accept
+    ip6 daddr 2a01:4f8:121:14e2:100:3:3:3 tcp dport { 8000, 8443 } accept
+
+# optional transport settings
+transport:
+  netbird:
+    enabled: true
+
+# required BGP settings
+bgp:
+  enabled: true
+  asn: 201421
+  evpn:
+    enabled: true
+  peers:
+    # the k8s cluster on the LAN: its prefixes (pod and service ranges) reach the other sites
+    - name: hetzner-fra-cluster
+      address: "2a01:4f8:121:14e2:100:1:1:1"
+      remoteAs: 64552
+      interface: lan0
+      disableConnectedCheck: true
+      nextHopSelf: true
+      outPolicy: deny-all
+      transit: true
+
+# when the last VM with a public IPv6 address is gone: ULA + NAT66 like OVH.
+# network:
+#   lan:
+#     v6:
+#       address: "fd03:103d:e091::1"
+#       netmask: 48
+#       network: "fd03:103d:e091::"
+#       public: false
+#       supernet: "fd03:103d:e091::/48"
+# dhcp:
+#   v6:
+#     start: "fd03:103d:e091:1::1"
+#     end: "fd03:103d:e091:1::ffff"
+# firewall:
+#   forwards:
+#     v6:
+#       - proto: tcp
+#         ports: [80, 443]
+#         to: "fd03:103d:e091::..."   # the cluster ingress
+#       - proto: tcp
+#         ports: [8000, 8443]
+#         to: "fd03:103d:e091::..."   # Traefik
+#   (and drop extraForwardRules)
+# bgp:
+#   peers:
+#     - address: "fd03:103d:e091::..."   # the cluster's new address
