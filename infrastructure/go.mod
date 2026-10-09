@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/KitStream/netbird-pulumi-provider/sdk/go/netbird v0.0.0-20260919191558-542a8c184da4
-	github.com/muhlba91/pulumi-shared-library v0.0.0-20261006084926-c9ffedb573bc
+	github.com/muhlba91/pulumi-shared-library v0.0.0-20261008201818-b662bc7ce5af
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.1
 	github.com/pulumi/pulumi/sdk/v3 v3.268.0
 	github.com/rs/zerolog v1.35.1
@@ -83,7 +83,7 @@ require (
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/pulumi-cloud-sdk/go v1.20260918.0 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.2 // indirect
-	github.com/pulumiverse/pulumi-scaleway/sdk v1.56.1 // indirect
+	github.com/pulumiverse/pulumi-scaleway/sdk v1.57.0 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
