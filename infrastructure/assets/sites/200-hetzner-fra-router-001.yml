@@ -1,7 +1,7 @@
 ---
 # required site settings
 name: hetzner-fra-router-001
-enabled: false
+enabled: true
 
 # required hardware settings
 hardware:
