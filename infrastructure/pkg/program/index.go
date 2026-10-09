@@ -41,6 +41,7 @@ func Run(ctx *pulumi.Context) error {
 		return pErr
 	}
 
+	outputs := pulumi.Map{}
 	for _, data := range sites {
 		siteData, sErr := site.ConfigureSite(ctx, data, sshKeys, netbirdConfig, netbirdProvider)
 		if sErr != nil {
@@ -50,9 +51,28 @@ func Run(ctx *pulumi.Context) error {
 		if wErr := writeOutputFiles(ctx, data.Name, siteData); wErr != nil {
 			return wErr
 		}
+
+		outputs[data.Name] = siteOutput(siteData)
 	}
 
+	ctx.Export("sites", outputs)
+
 	return nil
+}
+
+// siteOutput returns a site's part of the stack output "sites": {passwords: {adguard, nut}}. The nut password is
+// only there for a site with a UPS; a disabled site has none.
+// siteData: The generated resources and files of the site.
+func siteOutput(siteData *site.Data) pulumi.Map {
+	passwords := pulumi.Map{}
+	if siteData.AdguardPassword != nil {
+		passwords["adguard"] = *siteData.AdguardPassword
+	}
+	if siteData.NutPassword != nil {
+		passwords["nut"] = *siteData.NutPassword
+	}
+
+	return pulumi.Map{"passwords": passwords}
 }
 
 // writeOutputFiles writes the files of a site below outputs/ (the layout the router fleet's ./router reads) and
