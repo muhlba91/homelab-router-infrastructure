@@ -36,6 +36,7 @@ let
     "@@||privacy-mgmt.com^$important"
     "@@||events.launchdarkly.com^$important"
     "@@||gemini.google.com^$important"
+    "@@/^data-[0-9a-f]{10}\\./$important"
   ];
 
   # Managed block in user_rules, delimited by comment rules (`!`): replaced before every
