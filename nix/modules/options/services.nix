@@ -65,8 +65,6 @@ in
 
     dns.conditionalForwards = strList [ ] ''
       AdGuard `[/domain/]server` conditional forwards; server = the other router's LAN address.
-      For a site still on OPNsense use its tunnel address (its AdGuard would answer a query to
-      its LAN address with the wrong source).
     '';
   };
 }

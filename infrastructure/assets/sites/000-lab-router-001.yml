@@ -64,7 +64,6 @@ dhcp:
 
 # optional DNS settings
 dns:
-  # vie still runs OPNsense: its tunnel address
   conditionalForwards:
     vie.internal.muehlbachler.io: 10.0.0.1
 

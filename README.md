@@ -198,7 +198,7 @@ The services of a site can be overridden in its site file (`firewall.services`);
 | 6060 | TCP | lan, trusted | Prometheus: CrowdSec metrics (with monitoring and CrowdSec) |
 | 9199 | TCP | lan, trusted | Prometheus: NUT exporter (UPS status; with monitoring and a UPS) |
 | 3493 | TCP | lan | NUT server (UPS status for other hosts, e.g. Home Assistant; login `upsmon`; with a UPS) |
-| 51820 | UDP | any but the mesh | NetBird (WireGuard) underlay (with NetBird; the port is configurable) |
+| 51820 | UDP | any but the mesh | NetBird (WireGuard) underlay (with NetBird; the port is configurable; never sent into the mesh either) |
 | 179 | TCP | BGP neighbors | BGP (only from the configured neighbors) |
 | 3784, 4784 | UDP | BGP neighbors | BFD (only with a neighbor using it) |
 | 4789 | UDP | NetBird overlay | VXLAN of the EVPN overlay (with EVPN; only from the overlay range on the NetBird interface) |
