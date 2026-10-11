@@ -43,7 +43,7 @@ in
 
     observability.logging.vector = {
       enable = bool false "Ship the journal to a central Vector (its `vector` source).";
-      address = nullable types.str "host:port of the receiving Vector, e.g. `10.0.0.10:6000`.";
+      address = nullable (types.strMatching "[^/]+:[0-9]+") "host:port of the receiving Vector, e.g. `10.0.0.10:6000` (no scheme: plain http).";
     };
 
     security.crowdsec = {

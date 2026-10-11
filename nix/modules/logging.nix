@@ -26,7 +26,8 @@ in
       sinks.central = {
         type = "vector";
         inputs = [ "journald" ];
-        inherit (lv) address;
+        # Explicit scheme: Vector deprecated scheme-less addresses (their default turns to https).
+        address = "http://${lv.address}";
         buffer = {
           type = "disk";
           max_size = 268435488; # Vector's minimum for a disk buffer (256 MiB)

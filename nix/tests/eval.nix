@@ -178,6 +178,11 @@ lib.runTests {
       off = false;
     };
   };
+  # The Vector sink names its scheme (the default of a scheme-less address changes upstream).
+  testVectorAddress = {
+    expr = lib.hasPrefix "http://" home.config.services.vector.settings.sinks.central.address;
+    expected = true;
+  };
   # The driver retries until the UPS appears on USB.
   testUpsDriverRetry = {
     expr = home.config.systemd.services.upsdrv.serviceConfig.Restart;
@@ -305,6 +310,12 @@ lib.runTests {
         enable = lib.mkForce false;
         console.enable = true;
       };
+    };
+    expected = true;
+  };
+  testVectorAddressWithoutScheme = {
+    expr = fails home {
+      router.observability.logging.vector.address = lib.mkForce "http://10.72.200.1:6000";
     };
     expected = true;
   };
