@@ -132,6 +132,19 @@ lib.runTests {
       true
     ];
   };
+  # NetBird's underlay port never leaves through the mesh devices (no tunnel inside itself).
+  testNetbirdNotIntoMesh = {
+    expr = map (
+      s:
+      lib.hasInfix "oifname { \"br50001\", \"mesh\" } udp sport 51820 drop" s.config.networking.nftables.tables.router.content
+    ) [ home ];
+    expected = [ true ];
+  };
+  # The driver retries until the UPS appears on USB.
+  testUpsDriverRetry = {
+    expr = home.config.systemd.services.upsdrv.serviceConfig.Restart;
+    expected = "on-failure";
+  };
   testMetricsPorts = {
     expr = lib.sort lib.lessThan home.config.router.firewall.services.metrics.ports;
     expected = [

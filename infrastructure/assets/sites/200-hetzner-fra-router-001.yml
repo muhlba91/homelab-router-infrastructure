@@ -79,7 +79,7 @@ dhcp:
 # optional DNS settings
 dns:
   conditionalForwards:
-    vie.internal.muehlbachler.io: 10.254.1.2
+    vie.internal.muehlbachler.io: 10.0.0.1
     bhs.ovh.internal.muehlbachler.io: 10.51.0.1
 
 # optional firewall settings

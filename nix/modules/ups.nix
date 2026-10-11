@@ -35,6 +35,15 @@ lib.mkIf ups.enable {
       inherit user;
     };
   };
+  # The UPS can appear on USB only after the driver's first start (cold boot, a replugged
+  # cable): retry until it is there instead of failing once.
+  systemd.services.upsdrv = {
+    serviceConfig = {
+      Restart = "on-failure";
+      RestartSec = "10s";
+    };
+    unitConfig.StartLimitIntervalSec = 0;
+  };
   # upsd binds the LAN address, which must exist first.
   systemd.services.upsd = {
     wants = [ "network-online.target" ];

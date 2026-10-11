@@ -73,7 +73,7 @@ dhcp:
 # optional DNS settings
 dns:
   conditionalForwards:
-    vie.internal.muehlbachler.io: 10.254.1.2
+    vie.internal.muehlbachler.io: 10.0.0.1
     fra.hetzner.internal.muehlbachler.io: 10.100.0.1
 
 # optional transport settings

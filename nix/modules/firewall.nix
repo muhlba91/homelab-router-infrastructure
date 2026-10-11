@@ -186,6 +186,16 @@ in
         ct mark and ${replyMark} == ${replyMark} meta mark set meta mark or ${replyMark}
       }
 
+      ${lib.optionalString (nb.enable && hasMesh) ''
+        # NetBird underlay never into the mesh: a path check to an address the mesh routes (a
+        # peer's LAN or client-NAT address) succeeds over the overlay, and the overlay would
+        # then carry itself (a loop). The input chain refuses the other direction.
+        chain output {
+          type filter hook output priority filter; policy accept;
+          oifname ${meshSet} udp sport ${toString nb.port} drop
+        }
+      ''}
+
       chain forward {
         type filter hook forward priority filter; policy drop;
         ct state vmap { established : accept, related : accept, invalid : drop }
