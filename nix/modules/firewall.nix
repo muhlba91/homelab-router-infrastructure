@@ -148,9 +148,9 @@ in
 
         # Infrastructure (generated from the features)
         ${lib.optionalString (cfg.wan.v6.method == "dhcp6") ''
-          # DHCPv6 client: the server answers from its link-local to our 546, while our request
-          # went to a multicast group, so conntrack does not match the reply
-          iifname "${wanIf}" ip6 saddr fe80::/10 udp sport 547 udp dport 546 accept
+          # DHCPv6 client: the server answers our multicast request from its link-local or from
+          # the unspecified address, so conntrack does not match the reply
+          iifname "${wanIf}" udp sport 547 udp dport 546 accept
         ''}
         ${lib.optionalString nb.enable ''
           # NetBird underlay: WireGuard from anywhere but the mesh (no tunnel through itself)

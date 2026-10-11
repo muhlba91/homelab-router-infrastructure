@@ -140,6 +140,23 @@ lib.runTests {
     ) [ home ];
     expected = [ true ];
   };
+  # DHCPv6 on the WAN: solicit without an RA; replies accepted from any source (some servers
+  # answer from ::).
+  testWanDhcp6 = {
+    expr =
+      let
+        net = home.config.systemd.network.networks."11-wan";
+        rules = home.config.networking.nftables.tables.router.content;
+      in
+      {
+        withoutRa = net.dhcpV6Config.WithoutRA;
+        reply = lib.hasInfix ''iifname "wan0.31" udp sport 547 udp dport 546 accept'' rules;
+      };
+    expected = {
+      withoutRa = "solicit";
+      reply = true;
+    };
+  };
   # The driver retries until the UPS appears on USB.
   testUpsDriverRetry = {
     expr = home.config.systemd.services.upsdrv.serviceConfig.Restart;

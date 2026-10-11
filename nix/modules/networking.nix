@@ -56,6 +56,10 @@ let
     };
     linkConfig.RequiredForOnline = "routable";
   }
+  // lib.optionalAttrs v6Dhcp {
+    # Solicit without waiting for an RA: some ISPs send RAs only once a DHCPv6 binding exists.
+    dhcpV6Config.WithoutRA = "solicit";
+  }
   // lib.optionalAttrs (wan.shaping.upload != null) {
     # Upload shaping: CAKE as the root qdisc of the WAN device. `NAT` lets it see the LAN
     # hosts behind the masquerade, so the bandwidth is shared fairly per host.

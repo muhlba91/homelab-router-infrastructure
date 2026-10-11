@@ -2,7 +2,7 @@
 # Run Nix tooling: in a throw-away podman container (the Mac: nothing installed), or with
 # the Nix on the PATH (a CI runner). NX_NATIVE=1/0 forces one.
 #
-#   ./nx deploy --skip-checks .#lab-router-001     # inside `nix develop` (deploy, nixos-anywhere, ssh, ...)
+#   ./nx deploy --skip-checks .#<site>             # inside `nix develop` (deploy, nixos-anywhere, ssh, ...)
 #   ./nx -r nix flake update            # -r: plain shell, no devShell
 #   ./nx -r sh                          # interactive shell
 #

@@ -48,7 +48,8 @@ it is reachable only through its LAN port.
 Power off the old router and the new one, move the WAN and LAN cables (and a UPS's USB cable) to the router's WAN and
 LAN ports, power it on. Then:
 
-1. [validation.md](validation.md).
+1. [validation.md](validation.md). An ISP may bind the line to the old router's MAC: the new router's WAN lease then
+   follows after minutes to hours.
 2. Watchdog: `./router ssh <site> cat /sys/class/watchdog/watchdog0/identity` must be `iTCO_wdt` (the device systemd
    uses). Hang test: `./router ssh <site> "echo c | sudo tee /proc/sysrq-trigger"` crashes the kernel (the SSH session
    hangs); the watchdog restarts the box within about a minute (`system.watchdog`).

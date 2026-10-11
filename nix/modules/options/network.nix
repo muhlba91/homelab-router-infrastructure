@@ -60,7 +60,7 @@ in
             "none"
           ];
           default = "static";
-          description = "How the WAN IPv6 address is obtained (dhcp6 also uses RA for the default route).";
+          description = "How the WAN IPv6 address is obtained (dhcp6: solicits without waiting for an RA; the default route comes from RA).";
         };
         address = nullable cidr6 "Address with prefix length (required for `static`).";
         gateway = nullable ip6 "Default gateway (static).";
