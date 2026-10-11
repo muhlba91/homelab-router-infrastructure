@@ -202,9 +202,9 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
-      # The deployable routers, in deploy order, from the site data `pulumi up` just wrote.
+      # The routers CI deploys (deploy.automated), in deploy order, from the site data `pulumi up` just wrote.
       - run: |
-          echo "sites=$(./router sites | awk '$2 == "deployable=true" { print $1 }' | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
+          echo "sites=$(./router sites | awk '$3 == "automated=true" { print $1 }' | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
         id: sites
         working-directory: nix
 

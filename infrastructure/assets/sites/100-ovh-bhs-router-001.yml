@@ -3,6 +3,10 @@
 name: ovh-bhs-router-001
 enabled: true
 
+# optional deploy settings
+deploy:
+  automated: true
+
 # required hardware settings
 hardware:
   profile: qemu

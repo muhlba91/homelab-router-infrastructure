@@ -5,9 +5,9 @@ enabled: false
 
 # required hardware settings
 hardware:
-  # stand-in: the physical box (igc NICs, NVMe) needs its own profile
-  profile: qemu
-  disk: /dev/nvme0n1
+  # N100 mini PC, 4x I226-V: port 1 WAN, port 4 LAN, ports 2 and 3 spare (a second WAN, a LAN LAG)
+  profile: n100
+  disk: /dev/disk/by-id/nvme-GV-512-2280_2025030300279
   # Eaton 5S1600 via USB; Home Assistant's NUT integration asks for tech-hub
   ups:
     enabled: true
@@ -18,7 +18,7 @@ network:
   domain: vie.internal.muehlbachler.io
 
   wan:
-    mac: "a8:b8:e0:03:40:bd"
+    mac: "00:e0:b4:68:33:9a"
     interface: wan0
     vlan: 31
     # line: 275 Mbit/s upload (bufferbloat grade C: +112 ms under upload load)
@@ -30,7 +30,7 @@ network:
       method: dhcp6
 
   lan:
-    mac: "a8:b8:e0:03:40:be"
+    mac: "00:e0:b4:68:33:9d"
     interface: lan0
     v4:
       address: 10.0.0.1

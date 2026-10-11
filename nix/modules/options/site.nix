@@ -25,6 +25,11 @@ in
       Whether this site may be deployed. Example/evaluation-only sites set this to
       false; they get a nixosConfiguration (for CI) but no deploy-rs node.
     '';
+    meta.deployAutomated = bool false ''
+      Whether CI deploys this site after every `pulumi up` on main (only a deployable
+      site). Off: the site is deployed by hand only (`./router deploy`), e.g. while its
+      router is being installed or before a cutover. Read by the deploy tooling only.
+    '';
     meta.deployOrder = nullable types.ints.unsigned ''
       Position in the deploy order (from the site file's name, `<order>-<name>.yml`): the sites
       are deployed in ascending order, sites without one last (by name). Read by the deploy
@@ -70,9 +75,9 @@ in
       profile = mkOption {
         type = types.enum hardwareProfiles;
         default = "qemu";
-        description = "Hand-written hardware/boot profile: hardware/<profile>.nix (`qemu`: any x86_64 VM, BIOS or UEFI).";
+        description = "Hand-written hardware/boot profile: hardware/<profile>.nix (`qemu`: any x86_64 VM, BIOS or UEFI; `n100`: an Intel N100/N150 mini PC, UEFI).";
       };
-      disk = strD "/dev/sda" "Install disk (disko).";
+      disk = strD "/dev/sda" "Install disk (disko). A physical box: its `/dev/disk/by-id/` path (USB disks, e.g. a KVM's virtual one, can take `/dev/sda`).";
       ups = {
         enable = bool false ''
           A UPS on this router (NUT): the router reads it, serves it to the LAN (upsd on TCP

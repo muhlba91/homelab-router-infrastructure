@@ -29,6 +29,9 @@ Conventions:
     {{- with .Router.DeployOrder }}
     meta.deployOrder = {{ . }};
     {{- end }}
+    {{- with .Router.Deploy }}{{ with .Automated }}
+    meta.deployAutomated = {{ . }};
+    {{- end }}{{ end }}
 
     site = {
       name = "{{ .Router.Name }}";

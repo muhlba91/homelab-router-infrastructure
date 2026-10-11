@@ -5,7 +5,7 @@
 #   $OUTPUTS/keys/<site>/secrets/<name>     secret files for the router (e.g. netbird-setup-key)
 # and ends; everything below runs from there, through ./nx (podman).
 #
-#   ./router sites                       list sites (in deploy order) + whether they are deployable
+#   ./router sites                       list sites (in deploy order): deployable, deployed by CI
 #   ./router check                       flake checks: lint, deploy schema, eval tests, every site (nft, radvd, kea)
 #   ./router fmt                         format all .nix files (nixfmt, the flake's formatter)
 #   ./router dump <site>                 evaluated config as JSON (diff before/after a refactor)

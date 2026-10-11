@@ -1,6 +1,7 @@
 # Fixture (documentation addresses only, never deployed): a home site with a VLAN-tagged
 # DHCP/DHCPv6 WAN, a routable LAN (no NAT66), a public /56, reservations, a transit BGP
-# neighbor on the LAN, a UPS, monitoring, central logging and upload shaping.
+# neighbor on the LAN, a UPS, monitoring, central logging and upload shaping, on the n100
+# hardware profile.
 {
   router = {
     meta.deployable = false;
@@ -18,7 +19,10 @@
       ];
     };
 
-    hardware.profile = "qemu";
+    hardware = {
+      profile = "n100";
+      disk = "/dev/disk/by-id/nvme-EXAMPLE_0000";
+    };
     hardware.ups = {
       enable = true;
       name = "rack";

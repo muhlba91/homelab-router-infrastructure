@@ -77,6 +77,25 @@ lib.runTests {
       boot = "vfat";
     };
   };
+  # The n100 profile: systemd-boot on the ESP (no EFI variables), no GRUB, the TCO watchdog.
+  testBootLoaderN100 = {
+    expr = {
+      systemdBoot = home.config.boot.loader.systemd-boot.enable;
+      grub = home.config.boot.loader.grub.enable;
+      efiVariables = home.config.boot.loader.efi.canTouchEfiVariables;
+      watchdog = lib.elem "iTCO_wdt" home.config.boot.kernelModules;
+      disk = home.config.disko.devices.disk.main.device;
+      boot = home.config.fileSystems."/boot".fsType;
+    };
+    expected = {
+      systemdBoot = true;
+      grub = false;
+      efiVariables = false;
+      watchdog = true;
+      disk = "/dev/disk/by-id/nvme-EXAMPLE_0000";
+      boot = "vfat";
+    };
+  };
   # A pinned host key: sshd offers only the secret's key; without one, its own keys.
   testHostKey = {
     expr =

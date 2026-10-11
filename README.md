@@ -18,7 +18,8 @@ consumes.
 - [nix/](nix/): the NixOS router configuration (a flake): `modules/` (one module set for every site; the vars schema in
   `modules/options/`), `hardware/` (hardware profiles), `tests/` (checks, eval tests, fixtures), `router`, `nx` and
   its image (`Containerfile`)
-- [docs/](docs/): [Proxmox](docs/proxmox.md) (host, router VM, first install) and [router validation](docs/validation.md)
+- [docs/](docs/): [Proxmox](docs/proxmox.md) (host, router VM, first install), [physical router](docs/physical.md)
+  (bench install and swap) and [router validation](docs/validation.md)
 
 ---
 
@@ -111,7 +112,9 @@ Hetzner, `9xx` physical sites (deployed last).
 
 A site must be enabled explicitly (`enabled: true`); a disabled site is rendered but not deployable, and gets none of
 the generated keys and secrets above. Disabling a deployed site deletes them: the router keeps the old ones, so it is
-not reachable by `./router` again until it is reinstalled (or the new keys are handed over by hand).
+not reachable by `./router` again until it is reinstalled (or the new keys are handed over by hand). CI deploys an
+enabled site only with `deploy.automated: true`; without it the site keeps its keys and is deployed by hand (e.g. while
+its router is installed, until the cutover).
 
 The format is described in the [template](infrastructure/assets/templates/site.yml).
 
@@ -130,8 +133,9 @@ them.
 
 The routers are built from [nix/](nix/), using the site data Pulumi rendered. All commands run from `nix/`; Nix runs in a
 [podman](https://podman.io) container (nothing to install but podman), or directly if `nix` is on the `PATH` (CI).
-Every VM router uses the hardware profile `qemu` (BIOS or UEFI); the settings of a Proxmox VM and its first install are
-in [docs/proxmox.md](docs/proxmox.md), the checks after an install or migration in [docs/validation.md](docs/validation.md).
+Hardware profiles (`nix/hardware/`): `qemu` for every VM router (BIOS or UEFI), `n100` for an Intel N100/N150 mini PC
+(UEFI, systemd-boot; its disk by `/dev/disk/by-id/`). The first install: [docs/proxmox.md](docs/proxmox.md) (a VM) or
+[docs/physical.md](docs/physical.md); the checks after an install or migration: [docs/validation.md](docs/validation.md).
 
 The site data is read from `OUTPUTS` (default `../infrastructure/outputs`): `sites/` becomes the flake's `sites` input
 (copied into the Nix store, so nothing but `<site>/vars.nix` is allowed there), `keys/` is only used by the commands that
@@ -140,7 +144,7 @@ only) are used.
 
 ```bash
 cd nix
-./router sites                   # the sites (in deploy order) and whether they are deployable
+./router sites                   # the sites (in deploy order): deployable, deployed by CI (automated)
 ./router check                   # all checks (see Testing)
 ./router fmt                     # format all .nix files
 ./router dump <site>             # the evaluated configuration as JSON (diff before/after a change)
@@ -210,7 +214,7 @@ Outgoing only (no port opened): logs to the central Vector (`observability.loggi
   - pull requests: the Go lint and tests; every Nix flake check as its own job (on the fixtures); the Pulumi preview,
     commented on the pull request with the diff of every router's `vars.nix`; the Nix checks of every site on the
     rendered site files; a complete build of selected router systems (`Nix Build`, a matrix of sites);
-  - `main`: the preview and the Nix checks gate `pulumi up`; then every deployable router is deployed in deploy order
+  - `main`: the preview and the Nix checks gate `pulumi up`; then every router with `deploy.automated` is deployed in deploy order
     (`./router deploy`, one at a time, a failure stops the rest, a current router is skipped) and checked with
     `./router health`. The runner reaches the routers through Tailscale (`tag:github-actions` needs SSH to their
     management addresses).

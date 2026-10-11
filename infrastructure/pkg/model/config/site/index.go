@@ -23,6 +23,8 @@ type Config struct {
 	// or secrets. Disabling a deployed site deletes them: after re-enabling it, the router still has the old deploy
 	// key and host key, so the first deploy needs a static key and the new host key pushed by hand (or a reinstall).
 	Enabled *bool `yaml:"enabled,omitempty"`
+	// Deploy is the deployment configuration (automated deploys by CI) of the site.
+	Deploy *DeployConfig `yaml:"deploy,omitempty"`
 	// Hardware is the hardware configuration of the site.
 	Hardware *HardwareConfig `yaml:"hardware"`
 	// System is the system configuration (watchdog, garbage collection) of the site.

@@ -122,14 +122,17 @@
       # One configuration per directory under `sites`.
       nixosConfigurations = hostsIn sites;
 
-      # `./router sites`, one line each: "<name> deployable=<bool> mgmt=<address>" (from the
-      # site data alone, no nixpkgs), in deploy order (meta.deployOrder; none last, by name).
+      # `./router sites`, one line each: "<name> deployable=<bool> automated=<bool> mgmt=<address>"
+      # (from the site data alone, no nixpkgs), in deploy order (meta.deployOrder; none last, by
+      # name). automated = deployable and meta.deployAutomated: CI deploys exactly these.
       routerSites = lib.concatMapStrings (
         site:
         let
           r = siteCfgOf site;
         in
-        "${site} deployable=${lib.boolToString r.meta.deployable} mgmt=${r.mgmt.address}\n"
+        "${site} deployable=${lib.boolToString r.meta.deployable} automated=${
+          lib.boolToString (r.meta.deployable && r.meta.deployAutomated)
+        } mgmt=${r.mgmt.address}\n"
       ) (lib.sortOn deployRank siteNames);
 
       # `./router` connects to a deployable site with this: "<mgmt address>[ <host key>]" (with

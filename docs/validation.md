@@ -56,8 +56,8 @@ router's DNS).
 
 ## 7. Reboot
 
-A full stop and start of the VM (it also applies changed VM hardware) or `./router ssh <site> sudo systemctl reboot`,
-then sections 1-3 again: the router is back within a minute.
+A full stop and start of the VM (it also applies changed VM hardware), a power cycle of a physical box, or
+`./router ssh <site> sudo systemctl reboot`, then sections 1-3 again: the router is back within a minute.
 
-Keep the rollback of a migration (VM snapshot, the old hub link) until the router has run for a while without
+Keep the rollback of a migration (VM snapshot or the old box, the old hub link) until the router has run for a while without
 findings.
