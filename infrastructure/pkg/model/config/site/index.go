@@ -11,6 +11,13 @@ const defaultNetbirdEnabled = false
 // defaultUPSEnabled is the default of UPSConfig.Enabled (the Nix default of hardware.ups.enable).
 const defaultUPSEnabled = false
 
+// defaultCrowdSecEnabled is the default of CrowdSecConfig.Enabled (the Nix default of security.crowdsec.enable).
+const defaultCrowdSecEnabled = true
+
+// defaultCrowdSecConsoleEnabled is the default of CrowdSecConsoleConfig.Enabled (the Nix default of
+// security.crowdsec.console.enable).
+const defaultCrowdSecConsoleEnabled = false
+
 // Config defines Site-related configuration.
 type Config struct {
 	// Name is the name of the site: also its hostname and the name of its file ([<order>-]<name>.yml).
@@ -56,6 +63,18 @@ func (c *Config) IsEnabled() bool {
 func (c *Config) UsesNetbird() bool {
 	return c.Transport != nil && c.Transport.NetBird != nil &&
 		defaults.GetOrDefault(c.Transport.NetBird.Enabled, defaultNetbirdEnabled)
+}
+
+// UsesCrowdSecConsole reports whether the router runs CrowdSec and enrolls it in the console
+// (security.crowdsec.enabled and security.crowdsec.console.enabled).
+func (c *Config) UsesCrowdSecConsole() bool {
+	if c.Security == nil || c.Security.CrowdSec == nil || c.Security.CrowdSec.Console == nil {
+		return false
+	}
+	crowdSec := c.Security.CrowdSec
+
+	return defaults.GetOrDefault(crowdSec.Enabled, defaultCrowdSecEnabled) &&
+		defaults.GetOrDefault(crowdSec.Console.Enabled, defaultCrowdSecConsoleEnabled)
 }
 
 // UsesUPS reports whether the router has a UPS (hardware.ups.enabled).

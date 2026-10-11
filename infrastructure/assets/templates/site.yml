@@ -151,6 +151,9 @@ security:
   crowdsec:
     enabled: true
     banDuration: 4h
+    # enroll once in the CrowdSec console (needs the stack config crowdsec.enrollKey, else off with a warning)
+    console:
+      enabled: false
 
 # optional observability settings
 observability:

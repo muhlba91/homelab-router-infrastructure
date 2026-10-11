@@ -53,6 +53,8 @@ The generated files are written to `infrastructure/outputs/` and uploaded to the
 - `keys/<site>/secrets/adguard-password-hash`: its bcrypt hash, which the router configures (enabled sites only)
 - `keys/<site>/secrets/netbird-setup-key`: the NetBird setup key (enabled sites using NetBird only)
 - `keys/<site>/secrets/nut-password`: the password of the NUT user `upsmon` (enabled sites with a UPS only)
+- `keys/<site>/secrets/crowdsec-enroll-key`: the CrowdSec console enroll key (enabled sites with
+  `security.crowdsec.console.enabled` only)
 
 ## Destroying the Infrastructure
 
@@ -92,6 +94,17 @@ The bucket to upload the generated files to.
 
 ```yaml
 bucketId: the ID of the Scaleway bucket
+```
+
+### CrowdSec Console
+
+Optional. `enrollKey` is the enroll key of the CrowdSec console account (one for all sites). Sites with
+`security.crowdsec.console.enabled` enroll once under their hostname (accept them in the console afterwards); without
+the key their enrollment is turned off with a warning.
+
+```yaml
+crowdsec:
+  enrollKey: the enroll key (secret: pulumi config set --secret --path crowdsec.enrollKey)
 ```
 
 ### NetBird

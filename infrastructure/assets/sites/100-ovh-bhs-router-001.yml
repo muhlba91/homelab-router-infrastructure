@@ -76,6 +76,12 @@ dns:
     vie.internal.muehlbachler.io: 10.0.0.1
     fra.hetzner.internal.muehlbachler.io: 10.100.0.1
 
+# optional security settings
+security:
+  crowdsec:
+    console:
+      enabled: true
+
 # optional transport settings
 transport:
   netbird:

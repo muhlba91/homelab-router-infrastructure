@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/muhlba91/pulumi-shared-library/pkg/util/defaults"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 	"github.com/rs/zerolog/log"
 
 	"github.com/muhlba91/homelab-router-infrastructure/pkg/model/config/site"
+	crowdsecModel "github.com/muhlba91/homelab-router-infrastructure/pkg/model/crowdsec"
 	netbirdModel "github.com/muhlba91/homelab-router-infrastructure/pkg/model/netbird"
 	"github.com/muhlba91/homelab-router-infrastructure/pkg/util"
 )
@@ -35,11 +37,12 @@ var (
 )
 
 // LoadConfig loads the configuration for the given Pulumi context: the site configurations, the static public SSH
-// keys of the deploy user (the same for every site) and the NetBird connection of the core stack.
+// keys of the deploy user (the same for every site), the NetBird connection of the core stack and the CrowdSec
+// configuration.
 // ctx: The Pulumi context.
 func LoadConfig(
 	ctx *pulumi.Context,
-) ([]*site.Config, []string, *netbirdModel.Config, error) {
+) ([]*site.Config, []string, *netbirdModel.Config, *crowdsecModel.Config, error) {
 	Environment = ctx.Stack()
 
 	cfg := config.New(ctx, "")
@@ -50,22 +53,29 @@ func LoadConfig(
 	netbirdConfig, nErr := loadNetbirdConfig(ctx)
 	if nErr != nil {
 		log.Err(nErr).Msg("[config] error loading the netbird configuration from the core infrastructure stack")
-		return nil, nil, nil, nErr
+		return nil, nil, nil, nil, nErr
 	}
 
 	sites, rErr := util.ParseSitesFromFiles(sitesDir)
 	if rErr != nil {
 		log.Err(rErr).Msg("[config] error parsing site configurations from files")
-		return nil, nil, nil, rErr
+		return nil, nil, nil, nil, rErr
 	}
 
 	sshKeys, kErr := util.ParseSSHKeysFromFiles(sshKeysDir)
 	if kErr != nil {
 		log.Err(kErr).Msg("[config] error parsing ssh keys from files")
-		return nil, nil, nil, kErr
+		return nil, nil, nil, nil, kErr
 	}
 
-	return sites, sshKeys, netbirdConfig, nil
+	crowdsecConfig, cErr := loadCrowdSecConfig(cfg)
+	if cErr != nil {
+		log.Err(cErr).Msg("[config] error parsing the crowdsec configuration")
+		return nil, nil, nil, nil, cErr
+	}
+	dropCrowdSecConsole(sites, crowdsecConfig)
+
+	return sites, sshKeys, netbirdConfig, crowdsecConfig, nil
 }
 
 // ResourceName returns the name of a site's resources: <global name>-<site>-<environment>. The resource helpers of
@@ -135,6 +145,39 @@ func loadNetbirdConfig(ctx *pulumi.Context) (*netbirdModel.Config, error) {
 	}
 
 	return nbConfig, nil
+}
+
+// loadCrowdSecConfig reads the optional stack configuration "crowdsec"; missing, it is empty, malformed, an error.
+// cfg: The stack configuration.
+func loadCrowdSecConfig(cfg *config.Config) (*crowdsecModel.Config, error) {
+	crowdsecConfig := &crowdsecModel.Config{}
+	if _, err := cfg.TrySecretObject("crowdsec", crowdsecConfig); err != nil {
+		if errors.Is(err, config.ErrMissingVar) {
+			return &crowdsecModel.Config{}, nil
+		}
+		return nil, err
+	}
+
+	return crowdsecConfig, nil
+}
+
+// dropCrowdSecConsole turns the CrowdSec console enrollment off for every site that asks for it while no enroll key
+// is configured (with a warning), so the rendered vars and the delivered secrets agree.
+// sites: The site configurations.
+// crowdsecConfig: The CrowdSec configuration.
+func dropCrowdSecConsole(sites []*site.Config, crowdsecConfig *crowdsecModel.Config) {
+	if defaults.GetOrDefault(crowdsecConfig.EnrollKey, "") != "" {
+		return
+	}
+	for _, data := range sites {
+		if data.UsesCrowdSecConsole() {
+			log.Warn().
+				Str("site", data.Name).
+				Msg("[config] crowdsec.enrollKey is not set: CrowdSec console enrollment disabled")
+			disabled := false
+			data.Security.CrowdSec.Console.Enabled = &disabled
+		}
+	}
 }
 
 // stringValue returns the string at key of a stack output map, or "" if it is missing or not a string.

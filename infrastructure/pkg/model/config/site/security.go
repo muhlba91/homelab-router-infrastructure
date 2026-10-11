@@ -12,4 +12,12 @@ type CrowdSecConfig struct {
 	Enabled *bool `yaml:"enabled,omitempty"`
 	// BanDuration is how long a detected source stays banned (e.g. "4h").
 	BanDuration *string `yaml:"banDuration,omitempty"`
+	// Console is the CrowdSec console enrollment of the router.
+	Console *CrowdSecConsoleConfig `yaml:"console,omitempty"`
+}
+
+// CrowdSecConsoleConfig defines the enrollment in the CrowdSec console (with the account's enroll key).
+type CrowdSecConsoleConfig struct {
+	// Enabled indicates whether the router enrolls in the CrowdSec console.
+	Enabled *bool `yaml:"enabled,omitempty"`
 }

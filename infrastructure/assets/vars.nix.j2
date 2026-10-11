@@ -299,6 +299,11 @@ Conventions:
     {{- with .BanDuration }}
     security.crowdsec.banDuration = "{{ . }}";
     {{- end }}
+    {{- with .Console }}
+    {{- with .Enabled }}
+    security.crowdsec.console.enable = {{ . }};
+    {{- end }}
+    {{- end }}
     {{- end }}
     {{- end }}
 

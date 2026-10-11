@@ -56,6 +56,11 @@ in
       banDuration =
         typedD (types.strMatching "[0-9]+[smh]") "4h"
           "How long a detected source stays banned.";
+      console.enable = bool false ''
+        Enroll the router in the CrowdSec console once (as its hostname), with the account's
+        enroll key in the secret `crowdsec-enroll-key`; accept it in the console afterwards.
+        Shares only alerts (no manual decisions, custom or tainted scenarios, context).
+      '';
     };
 
     dns.extraRules = strList [ ] ''

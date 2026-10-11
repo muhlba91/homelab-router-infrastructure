@@ -157,6 +157,27 @@ lib.runTests {
       reply = true;
     };
   };
+  # CrowdSec console: the enroll key is a secret, enrollment a once-only unit, the console
+  # config writable outside the store.
+  testCrowdsecConsole = {
+    expr =
+      let
+        c =
+          (spoke.extendModules { modules = [ { router.security.crowdsec.console.enable = true; } ]; }).config;
+      in
+      {
+        secret = c.router.secrets ? crowdsec-enroll-key;
+        unit = c.systemd.services ? crowdsec-console-enroll;
+        consolePath = c.services.crowdsec.settings.general.api.server.console_path;
+        off = spoke.config.systemd.services ? crowdsec-console-enroll;
+      };
+    expected = {
+      secret = true;
+      unit = true;
+      consolePath = "/var/lib/crowdsec/state/console.yaml";
+      off = false;
+    };
+  };
   # The driver retries until the UPS appears on USB.
   testUpsDriverRetry = {
     expr = home.config.systemd.services.upsdrv.serviceConfig.Restart;
@@ -276,6 +297,15 @@ lib.runTests {
   };
   testNutExporterNeedsUps = {
     expr = fails home { router.hardware.ups.enable = lib.mkForce false; };
+    expected = true;
+  };
+  testCrowdsecConsoleNeedsCrowdsec = {
+    expr = fails spoke {
+      router.security.crowdsec = {
+        enable = lib.mkForce false;
+        console.enable = true;
+      };
+    };
     expected = true;
   };
   testTransitNeedsStrict = {

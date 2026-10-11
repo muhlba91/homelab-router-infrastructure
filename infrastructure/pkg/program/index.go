@@ -1,10 +1,12 @@
 package program
 
 import (
+	"errors"
 	"os"
 	"path"
 	"path/filepath"
 
+	"github.com/muhlba91/pulumi-shared-library/pkg/util/defaults"
 	"github.com/muhlba91/pulumi-shared-library/pkg/util/dir"
 	"github.com/muhlba91/pulumi-shared-library/pkg/util/storage"
 	scwUpload "github.com/muhlba91/pulumi-shared-library/pkg/util/storage/scaleway"
@@ -27,7 +29,7 @@ const outputDirPermissions os.FileMode = 0o700
 // Run is the Pulumi program: it creates the resources of every site and writes its files.
 // ctx: The Pulumi context.
 func Run(ctx *pulumi.Context) error {
-	sites, sshKeys, netbirdConfig, err := config.LoadConfig(ctx)
+	sites, sshKeys, netbirdConfig, crowdsecConfig, err := config.LoadConfig(ctx)
 	if err != nil {
 		return err
 	}
@@ -48,7 +50,16 @@ func Run(ctx *pulumi.Context) error {
 			return sErr
 		}
 
-		if wErr := writeOutputFiles(ctx, data.Name, siteData); wErr != nil {
+		var enrollKey pulumi.StringInput
+		if data.IsEnabled() && data.UsesCrowdSecConsole() {
+			secret, ok := pulumi.ToSecret(pulumi.String(defaults.GetOrDefault(crowdsecConfig.EnrollKey, ""))).(pulumi.StringOutput)
+			if !ok {
+				return errors.New("the CrowdSec enroll key is not a string")
+			}
+			enrollKey = secret
+		}
+
+		if wErr := writeOutputFiles(ctx, data.Name, siteData, enrollKey); wErr != nil {
 			return wErr
 		}
 
@@ -79,11 +90,12 @@ func siteOutput(siteData *site.Data) pulumi.Map {
 // uploads them to the bucket under the same paths: sites/<site>/vars.nix and, for an enabled site,
 // keys/<site>/deploy-key (the deploy user's private key), keys/<site>/adguard-password (for logging in) and
 // keys/<site>/secrets/ (pushed to the router: the SSH host key, the AdGuard password hash, the NetBird setup key, the
-// NUT password).
+// NUT password, the CrowdSec console enroll key).
 // ctx: The Pulumi context.
 // name: The name of the site.
 // siteData: The generated resources and files of the site.
-func writeOutputFiles(ctx *pulumi.Context, name string, siteData *site.Data) error {
+// enrollKey: The CrowdSec console enroll key; nil for a site that does not enroll.
+func writeOutputFiles(ctx *pulumi.Context, name string, siteData *site.Data, enrollKey pulumi.StringInput) error {
 	type outputFile struct {
 		dir     string
 		name    string
@@ -109,6 +121,9 @@ func writeOutputFiles(ctx *pulumi.Context, name string, siteData *site.Data) err
 	if siteData.AdguardPassword != nil {
 		files = append(files, outputFile{keysDir, "adguard-password", *siteData.AdguardPassword})
 		files = append(files, outputFile{secretsDir, "adguard-password-hash", *siteData.AdguardPasswordHash})
+	}
+	if enrollKey != nil {
+		files = append(files, outputFile{secretsDir, "crowdsec-enroll-key", enrollKey})
 	}
 
 	for _, file := range files {

@@ -220,6 +220,12 @@ firewall:
   extraForwardRules: |
     ip6 daddr 2a01:aea0:dd3:25a:1000:3:3:2 tcp dport { 80, 443 } accept
 
+# optional security settings
+security:
+  crowdsec:
+    console:
+      enabled: true
+
 # optional observability settings
 observability:
   monitoring:

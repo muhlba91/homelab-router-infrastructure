@@ -4,12 +4,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	siteModel "github.com/muhlba91/homelab-router-infrastructure/pkg/model/config/site"
 	"github.com/muhlba91/homelab-router-infrastructure/pkg/program"
 	"github.com/muhlba91/homelab-router-infrastructure/pkg/util"
 	"github.com/muhlba91/homelab-router-infrastructure/test/mocks"
@@ -23,7 +25,7 @@ var enabledLine = regexp.MustCompile(`(?m)^enabled: false$`)
 
 // render runs the program under mocks in dir, with the site files of assets/sites and the site template (all of them
 // enabled if enable is set) and checks the written files.
-func render(t *testing.T, dir string, enable bool) {
+func render(t *testing.T, dir string, enable, enrollKey bool) {
 	t.Helper()
 
 	assets, err := filepath.Abs("../../assets")
@@ -48,7 +50,11 @@ func render(t *testing.T, dir string, enable bool) {
 	}
 
 	t.Chdir(dir)
-	t.Setenv("PULUMI_CONFIG", `{"`+project+`:bucketId":"mock-bucket"}`)
+	stackConfig := `{"` + project + `:bucketId":"mock-bucket"`
+	if enrollKey {
+		stackConfig += `,"` + project + `:crowdsec":"{\"enrollKey\":\"mock-key\"}"`
+	}
+	t.Setenv("PULUMI_CONFIG", stackConfig+"}")
 	require.NoError(t, pulumi.RunErr(program.Run, pulumi.WithMocks(project, "test", mocks.Mocks{})))
 
 	sites, err := util.ParseSitesFromFiles("./assets/sites")
@@ -60,16 +66,7 @@ func render(t *testing.T, dir string, enable bool) {
 		}
 		assert.FileExists(t, filepath.Join("outputs", "sites", site.Name, "vars.nix"))
 		if site.IsEnabled() {
-			assert.FileExists(t, filepath.Join("outputs", "keys", site.Name, "deploy-key"))
-			assert.FileExists(t, filepath.Join("outputs", "keys", site.Name, "secrets", "ssh-host-key"))
-			assert.FileExists(t, filepath.Join("outputs", "keys", site.Name, "adguard-password"))
-			assert.FileExists(t, filepath.Join("outputs", "keys", site.Name, "secrets", "adguard-password-hash"))
-			if site.UsesNetbird() {
-				assert.FileExists(t, filepath.Join("outputs", "keys", site.Name, "secrets", "netbird-setup-key"))
-			}
-			if site.UsesUPS() {
-				assert.FileExists(t, filepath.Join("outputs", "keys", site.Name, "secrets", "nut-password"))
-			}
+			assertKeys(t, site, enrollKey)
 		} else {
 			assert.NoDirExists(t, filepath.Join("outputs", "keys", site.Name))
 		}
@@ -87,6 +84,42 @@ func render(t *testing.T, dir string, enable bool) {
 	)
 }
 
+// assertKeys checks the key and secret files of an enabled site: the ones every site gets, and the optional ones
+// exactly when the site uses their feature (the CrowdSec console only with an enroll key, else off in vars.nix too).
+func assertKeys(t *testing.T, site *siteModel.Config, enrollKey bool) {
+	t.Helper()
+
+	keys := filepath.Join("outputs", "keys", site.Name)
+	secrets := filepath.Join(keys, "secrets")
+	assert.FileExists(t, filepath.Join(keys, "deploy-key"))
+	assert.FileExists(t, filepath.Join(keys, "adguard-password"))
+	assert.FileExists(t, filepath.Join(secrets, "ssh-host-key"))
+	assert.FileExists(t, filepath.Join(secrets, "adguard-password-hash"))
+
+	optional := map[string]bool{
+		"netbird-setup-key":   site.UsesNetbird(),
+		"nut-password":        site.UsesUPS(),
+		"crowdsec-enroll-key": site.UsesCrowdSecConsole() && enrollKey,
+	}
+	if site.UsesCrowdSecConsole() {
+		vars, err := os.ReadFile(filepath.Join("outputs", "sites", site.Name, "vars.nix"))
+		require.NoError(t, err)
+		assert.Equal(
+			t,
+			enrollKey,
+			strings.Contains(string(vars), "security.crowdsec.console.enable = true;"),
+			site.Name,
+		)
+	}
+	for name, used := range optional {
+		if used {
+			assert.FileExists(t, filepath.Join(secrets, name))
+		} else {
+			assert.NoFileExists(t, filepath.Join(secrets, name))
+		}
+	}
+}
+
 // TestRunAsIs renders the site files as they are (only enabled sites get keys); files of an earlier run whose site is
 // gone are removed.
 func TestRunAsIs(t *testing.T) {
@@ -97,7 +130,7 @@ func TestRunAsIs(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, path, "file"), []byte("stale"), 0o600))
 	}
 
-	render(t, dir, false)
+	render(t, dir, false, true)
 
 	for _, path := range stale {
 		assert.NoDirExists(t, path)
@@ -113,5 +146,11 @@ func TestRunEnabled(t *testing.T) {
 	}
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 
-	render(t, dir, true)
+	render(t, dir, true, true)
+}
+
+// TestRunWithoutEnrollKey renders every site file enabled without the CrowdSec enroll key: the console enrollment is
+// dropped (vars.nix and secrets).
+func TestRunWithoutEnrollKey(t *testing.T) {
+	render(t, t.TempDir(), true, false)
 }

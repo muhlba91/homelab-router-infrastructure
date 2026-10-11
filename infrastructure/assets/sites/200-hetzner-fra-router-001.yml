@@ -101,6 +101,12 @@ firewall:
     ip6 daddr 2a01:4f8:121:14e2:100:3:3:2 tcp dport { 80, 443 } accept
     ip6 daddr 2a01:4f8:121:14e2:100:3:3:3 tcp dport { 8000, 8443 } accept
 
+# optional security settings
+security:
+  crowdsec:
+    console:
+      enabled: true
+
 # optional transport settings
 transport:
   netbird:
