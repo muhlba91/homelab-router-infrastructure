@@ -3,6 +3,10 @@
 name: vie-router-001
 enabled: true
 
+# optional deploy settings
+deploy:
+  automated: true
+
 # required hardware settings
 hardware:
   # N100 mini PC, 4x I226-V: port 1 WAN, port 4 LAN, ports 2 and 3 spare (a second WAN, a LAN LAG)
