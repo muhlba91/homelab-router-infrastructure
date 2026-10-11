@@ -37,15 +37,21 @@ disabled deletes its keys) and leave `deploy.automated` off until the swap (CI w
 
 4. Pull the USB stick when the box reboots (or put the NVMe first in the boot order). systemd-boot is installed to the
    ESP's fallback path, so the firmware boots it without boot entries.
-5. In the console: `cat /sys/class/watchdog/watchdog0/identity` must be `iTCO_wdt` (systemd uses `watchdog0`). Hang
-   test: `echo c | sudo tee /proc/sysrq-trigger` crashes the kernel; the watchdog restarts the box within about a
-   minute (`system.watchdog`).
+5. Optional: cable a laptop alone to the LAN port (its Wi-Fi off: the live LAN uses the same addresses); the router's
+   DHCP gives it an address and the watchdog checks below work on the bench.
 
-The router is not reachable on the bench (its WAN waits for the site's real uplink, its LAN is not connected): use the
-console.
+The installed system has no console login (SSH keys only), and its WAN waits for the site's real uplink: on the bench
+it is reachable only through its LAN port.
 
 ## Swap
 
-Power off the old router, move its WAN and LAN cables (and a UPS's USB cable) to the router's WAN and LAN ports, power
-it on. Then [validation.md](validation.md) and commit `deploy.automated: true`. Rollback: the old router back on the same
-cables.
+Power off the old router and the new one, move the WAN and LAN cables (and a UPS's USB cable) to the router's WAN and
+LAN ports, power it on. Then:
+
+1. [validation.md](validation.md).
+2. Watchdog: `./router ssh <site> cat /sys/class/watchdog/watchdog0/identity` must be `iTCO_wdt` (the device systemd
+   uses). Hang test: `./router ssh <site> "echo c | sudo tee /proc/sysrq-trigger"` crashes the kernel (the SSH session
+   hangs); the watchdog restarts the box within about a minute (`system.watchdog`).
+3. Commit `deploy.automated: true`.
+
+Rollback: the old router back on the same cables.
