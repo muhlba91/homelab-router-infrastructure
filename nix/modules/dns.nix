@@ -13,6 +13,10 @@
 let
   cfg = config.router;
 
+  # The site's own domain is answered by this router's AdGuard (its rewrites, so CNAME targets
+  # inside the domain resolve too), like the other sites' domains by theirs.
+  ownDomain = "[/${cfg.site.domain}/]${cfg.derived.lanAddr4}";
+
   # Filter exceptions for every site.
   commonRules = [
     "@@||apps.apple.com^$important"
@@ -100,7 +104,11 @@ in
       dns = {
         bind_hosts = [ "0.0.0.0" ];
         port = 53;
-        upstream_dns = [ "tls://dns10.quad9.net" ] ++ cfg.dns.conditionalForwards;
+        upstream_dns = [
+          "tls://dns10.quad9.net"
+          ownDomain
+        ]
+        ++ lib.remove ownDomain cfg.dns.conditionalForwards;
         bootstrap_dns = [
           "9.9.9.10"
           "149.112.112.10"

@@ -183,6 +183,15 @@ lib.runTests {
     expr = lib.hasPrefix "http://" home.config.services.vector.settings.sinks.central.address;
     expected = true;
   };
+  # The site's own domain is forwarded to the router's LAN address, next to the configured forwards.
+  testDnsOwnDomain = {
+    expr = home.config.services.adguardhome.settings.dns.upstream_dns;
+    expected = [
+      "tls://dns10.quad9.net"
+      "[/home.example.org/]${home.config.router.derived.lanAddr4}"
+      "[/spoke.example.org/]10.71.0.1"
+    ];
+  };
   # The driver retries until the UPS appears on USB.
   testUpsDriverRetry = {
     expr = home.config.systemd.services.upsdrv.serviceConfig.Restart;

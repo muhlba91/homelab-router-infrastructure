@@ -70,6 +70,8 @@ in
 
     dns.conditionalForwards = strList [ ] ''
       AdGuard `[/domain/]server` conditional forwards; server = the other router's LAN address.
+      The site's own domain (`site.domain`) always forwards to this router's LAN address, so
+      it needs no entry here.
     '';
   };
 }
