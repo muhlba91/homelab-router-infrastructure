@@ -231,6 +231,18 @@ lib.runTests {
     expected = true;
   };
 
+  # LAN -> LAN hairpin is accepted before the conntrack check (asymmetric replies).
+  testFirewallHairpin = {
+    expr =
+      let
+        rules = home.config.networking.nftables.tables.router.content;
+        chain = lib.last (lib.splitString "chain forward {" rules);
+        before = lib.head (lib.splitString "ct state vmap" chain);
+      in
+      lib.hasInfix "oifname \"${home.config.router.derived.lanIf}\" accept" before;
+    expected = true;
+  };
+
   # Firewall exposure: the defaults of every site.
   testFirewallDefaultDrop = {
     expr = map (

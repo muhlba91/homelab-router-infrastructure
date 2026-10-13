@@ -198,6 +198,10 @@ in
 
       chain forward {
         type filter hook forward priority filter; policy drop;
+        # Hairpin: a host on the LAN reaching a network routed via another LAN host (e.g. a
+        # cluster's addresses). That host answers the client directly (same L2), so the router
+        # sees one direction only and conntrack would drop the client's ACKs as invalid.
+        iifname "${lanIf}" oifname "${lanIf}" accept
         ct state vmap { established : accept, related : accept, invalid : drop }
         ip protocol icmp accept
         ip6 nexthdr icmpv6 accept
