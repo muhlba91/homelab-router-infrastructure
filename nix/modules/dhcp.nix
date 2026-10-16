@@ -5,12 +5,22 @@ let
   cfg = config.router;
   d = cfg.derived;
   domain = cfg.site.domain;
+
+  # Kea opens its sockets once at start: when the LAN interface is not ready yet (its
+  # link-local address is still tentative at boot) a socket fails, and with the defaults
+  # (no retries, not required) the server keeps running without answering anyone. Retrying
+  # makes it come up when the interface does.
+  interfacesConfig = {
+    interfaces = [ d.lanIf ];
+    service-sockets-max-retries = 30;
+    service-sockets-retry-wait-time = 2000;
+  };
 in
 {
   services.kea.dhcp4 = {
     enable = true;
     settings = {
-      interfaces-config.interfaces = [ d.lanIf ];
+      interfaces-config = interfacesConfig;
       lease-database = {
         name = "/var/lib/kea/dhcp4.leases";
         persist = true;
@@ -60,7 +70,7 @@ in
   services.kea.dhcp6 = {
     enable = true;
     settings = {
-      interfaces-config.interfaces = [ d.lanIf ];
+      interfaces-config = interfacesConfig;
       lease-database = {
         name = "/var/lib/kea/dhcp6.leases";
         persist = true;

@@ -422,6 +422,48 @@ lib.runTests {
       true
     ];
   };
+  # A hub lost for good restarts the NetBird client (timer + unit); switched off, neither exists.
+  testEvpnRecovery = {
+    expr =
+      let
+        units = s: [
+          (s.config.systemd.timers ? evpn-recovery)
+          (s.config.systemd.services ? evpn-recovery)
+        ];
+      in
+      [
+        (units spoke)
+        (units (spoke.extendModules { modules = [ { router.evpn.recovery.enable = false; } ]; }))
+      ];
+    expected = [
+      [
+        true
+        true
+      ]
+      [
+        false
+        false
+      ]
+    ];
+  };
+  # Both Kea servers retry opening their LAN sockets (a socket that failed at boot must not
+  # leave the server running without answering).
+  testKeaSocketRetries = {
+    expr = map (s: [
+      s.config.services.kea.dhcp4.settings.interfaces-config.service-sockets-max-retries
+      s.config.services.kea.dhcp6.settings.interfaces-config.service-sockets-max-retries
+    ]) fixtures';
+    expected = [
+      [
+        30
+        30
+      ]
+      [
+        30
+        30
+      ]
+    ];
+  };
   testInvalidMac = {
     expr = fails spoke { router.wan.mac = lib.mkForce "02:00:00:71:00"; };
     expected = true;

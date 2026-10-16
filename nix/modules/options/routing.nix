@@ -119,6 +119,20 @@ in
         defaultText = lib.literalExpression "router.transport.netbird.mtu - 50";
         description = "MTU of the VXLAN path: at most the NetBird MTU - 50 (VXLAN overhead).";
       };
+      recovery = {
+        enable = bool true ''
+          Restart the NetBird client when the hub is lost and stays lost: a client can stay in
+          `Connecting` (offers sent, none answered) after its server was unreachable for a
+          while, and does not recover by itself. A check runs every minute and restarts the
+          client only when the BGP session to the hub has not been Established for `after`
+          minutes and the hub's overlay address does not answer a ping (so a healthy tunnel
+          is never touched), at most once per `cooldown` minutes.
+        '';
+        after =
+          typedD types.ints.positive 5
+            "Minutes without an Established hub session (and without a ping answer) before the client is restarted.";
+        cooldown = typedD types.ints.positive 15 "Minimum minutes between two restarts.";
+      };
     };
 
     # Internal: filled by modules, not by vars.
