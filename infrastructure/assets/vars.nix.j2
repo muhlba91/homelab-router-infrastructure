@@ -372,6 +372,20 @@ Conventions:
       enable = {{ . }};
       {{- end }}
       hubVtep = "{{ $.Netbird.HubIP }}";
+      {{- with .Egress }}
+      egress = {
+        {{- with .Enabled }}
+        enable = {{ . }};
+        {{- end }}
+        {{- with .Sources }}
+        sources = [
+          {{- range . }}
+          "{{ . }}"
+          {{- end }}
+        ];
+        {{- end }}
+      };
+      {{- end }}
     };
     {{- end }}
 

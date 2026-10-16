@@ -47,4 +47,15 @@ type BGPPeerConfig struct {
 type EVPNConfig struct {
 	// Enabled indicates whether EVPN is enabled for the site (default false).
 	Enabled *bool `yaml:"enabled,omitempty"`
+	// Egress is the Internet egress of exposed services through the hub (optional, disabled if unset).
+	Egress *EgressConfig `yaml:"egress,omitempty"`
+}
+
+// EgressConfig defines the Internet egress of the exposed services of a site: the provider drops sources of the
+// public prefixes, so their packets leave through the hub (default route of the EVPN VRF; needs the hub's egress).
+type EgressConfig struct {
+	// Enabled indicates whether the egress is enabled (default false).
+	Enabled *bool `yaml:"enabled,omitempty"`
+	// Sources is the list of source prefixes, inside the additional routable networks (default: all of them).
+	Sources []string `yaml:"sources,omitempty"`
 }

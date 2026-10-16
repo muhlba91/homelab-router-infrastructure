@@ -118,6 +118,8 @@ bgp:
   asn: 201421
   evpn:
     enabled: true
+    egress:
+      enabled: true
   peers:
     # the k8s cluster on the LAN: its prefixes (pod and service ranges) reach the other sites
     - name: hetzner-fra-cluster

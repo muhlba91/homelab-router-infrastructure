@@ -119,6 +119,20 @@ in
         defaultText = lib.literalExpression "router.transport.netbird.mtu - 50";
         description = "MTU of the VXLAN path: at most the NetBird MTU - 50 (VXLAN overhead).";
       };
+      egress = {
+        enable = bool false ''
+          Internet egress of exposed services through the hub (needs its `bgp.evpn.egress`): the
+          provider of the site drops sources of the public prefixes, so their packets use the
+          default route of the mesh table (originated by the hub) unless a more specific route
+          exists. Everything else keeps the site's default route.
+        '';
+        sources = mkOption {
+          type = types.listOf cidr6;
+          default = map (p: p.prefix) config.router.publicV6;
+          defaultText = lib.literalExpression "map (p: p.prefix) router.publicV6";
+          description = "Source prefixes of the egress, inside router.publicV6 (e.g. only the pool of a cluster's load balancers).";
+        };
+      };
       recovery = {
         enable = bool true ''
           Restart the NetBird client when the hub is lost and stays lost: a client can stay in

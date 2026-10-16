@@ -33,6 +33,17 @@ reach the router (firewall or NAT in front of it).
 - Self-originated: exactly the site's own prefixes (LAN, announced WAN nets, public prefixes, loopbacks).
 - `0` IPv4 routes without the LAN address as source, more than `0` IPv6 routes, no nexthop objects.
 
+### Egress (sites with `evpn.egress`)
+
+```bash
+./router ssh <site> "ip -6 rule | grep -A1 'suppress_prefixlength 0'; ip -6 route show table 1001 default"
+./router ssh <site> "ping -c2 -I <SOURCE> 2001:4860:4860::8888"
+```
+
+- Two rules per source: the main table without default routes, then the mesh table.
+- The mesh table's default route points to the hub; the site's own default route is unchanged.
+- `<SOURCE>` (an address inside the egress sources) reaches the internet.
+
 ## 4. Traffic from the router
 
 ```bash

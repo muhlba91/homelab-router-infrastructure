@@ -446,6 +446,41 @@ lib.runTests {
       ]
     ];
   };
+  # The egress sends sources of the public prefixes to the mesh table after the main table's
+  # specific routes; they must lie inside the site's own prefixes.
+  testEvpnEgress =
+    let
+      egress = home.extendModules { modules = [ { router.evpn.egress.enable = true; } ]; };
+      rules = s: s.config.systemd.network.networks."40-mesh".routingPolicyRules;
+    in
+    {
+      expr = [
+        (rules home)
+        (map (r: [
+          r.From
+          r.Table
+        ]) (rules egress))
+        (fails egress { router.evpn.egress.sources = lib.mkForce [ "2001:db8:7201::/56" ]; })
+        (fails spoke { router.evpn.egress.enable = true; })
+        (fails egress { router.bgp.accept6 = lib.mkForce [ "::/0" ]; })
+      ];
+      expected = [
+        [ ]
+        [
+          [
+            "2001:db8:7200::/56"
+            "main"
+          ]
+          [
+            "2001:db8:7200::/56"
+            1001
+          ]
+        ]
+        true
+        true
+        true
+      ];
+    };
   # Both Kea servers retry opening their LAN sockets (a socket that failed at boot must not
   # leave the server running without answering).
   testKeaSocketRetries = {

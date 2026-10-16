@@ -93,3 +93,5 @@ bgp:
   asn: 201421
   evpn:
     enabled: true
+    egress:
+      enabled: true

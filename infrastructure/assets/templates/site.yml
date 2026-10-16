@@ -184,6 +184,9 @@ bgp:
   asn: 64923
   evpn:
     enabled: false
+    # egress: sources of the additionalRoutableNetworks leave through the hub (the provider drops them)
+    #   enabled: false
+    #   sources: ["2001:678:dc0:300::/64"]
   # transit: never for a neighbor that is itself a site (it would re-announce that site's prefixes: a loop)
   peers: []
     # - name: cluster

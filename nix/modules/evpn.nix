@@ -5,10 +5,13 @@
 # The VXLAN's local address is our NetBird overlay IP, which only exists after the first
 # enrollment: networkd builds VRF + bridge, a small unit creates/updates the VXLAN device
 # from wt0's address and keeps its settings (timer: also heals a re-enrollment).
+# Egress: sources of the public prefixes use the hub's default route in the mesh table (policy
+# rules), after the specific routes of the main table.
 {
   config,
   lib,
   pkgs,
+  rlib,
   ...
 }:
 let
@@ -16,6 +19,8 @@ let
   ev = cfg.evpn;
   inherit (cfg.derived) evpnBridge evpnVxlan evpnRmac;
   wt = cfg.transport.netbird.iface;
+  # Whether an egress source lies inside a prefix of the site.
+  ownSource = s: lib.any (p: rlib.within6 p.prefix s) cfg.publicV6;
 in
 {
   config = lib.mkIf ev.enable {
@@ -31,6 +36,18 @@ in
       {
         assertion = cfg.bgp.enable;
         message = "router.evpn needs router.bgp.enable (the routes are exchanged with the hub over BGP)";
+      }
+      {
+        assertion = !ev.egress.enable || ev.egress.sources != [ ];
+        message = "router.evpn.egress needs sources (router.publicV6 is empty)";
+      }
+      {
+        assertion = !ev.egress.enable || lib.all ownSource ev.egress.sources;
+        message = "router.evpn.egress.sources must lie inside router.publicV6 (other sources are not ours)";
+      }
+      {
+        assertion = !ev.egress.enable || !lib.elem "::/0" cfg.bgp.accept6;
+        message = "router.bgp.accept6 must not contain ::/0 with router.evpn.egress (the hub's default route would replace the site's)";
       }
     ];
 
@@ -55,6 +72,25 @@ in
     systemd.network.networks."40-${ev.vrf}" = {
       matchConfig.Name = ev.vrf;
       linkConfig.RequiredForOnline = "no";
+      # Egress: the specific routes of the main table first (the LAN, the other sites), then
+      # the default route of the mesh table (the hub); without one, the site's default route.
+      routingPolicyRules = lib.optionals ev.egress.enable (
+        lib.concatMap (source: [
+          {
+            Family = "ipv6";
+            From = source;
+            Table = "main";
+            SuppressPrefixLength = 0;
+            Priority = 500;
+          }
+          {
+            Family = "ipv6";
+            From = source;
+            Table = ev.table;
+            Priority = 501;
+          }
+        ]) ev.egress.sources
+      );
     };
     systemd.network.netdevs."41-${evpnBridge}" = {
       netdevConfig = {

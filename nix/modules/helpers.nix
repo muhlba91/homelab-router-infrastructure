@@ -33,5 +33,12 @@
           lib.toLower (lib.toHexString (v - lib.mod v (pow2 host)));
       in
       "${lib.concatStringsSep ":" (lib.imap0 group (lib.splitString ":" p.address))}/${toString p.prefixLength}";
+    # Whether an IPv6 CIDR lies inside another ("2001:db8:0:1::/64" in "2001:db8::/48").
+    within6 =
+      outer: inner:
+      let
+        len = cidr: lib.toInt (builtins.elemAt (lib.splitString "/" cidr) 1);
+      in
+      len inner >= len outer && network6 "${addr inner}/${toString (len outer)}" == network6 outer;
   };
 }
