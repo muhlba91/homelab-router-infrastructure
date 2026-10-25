@@ -25,8 +25,7 @@ consumes.
 
 ## Requirements
 
-- [Go](https://golang.org/dl/)
-- [Pulumi](https://www.pulumi.com/docs/install/)
+- [mise](https://mise.jdx.dev) for Go, golangci-lint and Pulumi (see [Development](#development))
 - [podman](https://podman.io) for the NixOS routers in [nix/](nix/) (or a local [Nix](https://nixos.org/download/))
 
 ## Creating the Infrastructure
@@ -218,6 +217,12 @@ The services of a site can be overridden in its site file (`firewall.services`);
 | 546 | UDP | wan | DHCPv6 client replies (with DHCPv6 on the WAN) |
 
 Outgoing only (no port opened): logs to the central Vector (`observability.logging.vector`), CrowdSec's hub and community blocklist, NetBird's management service.
+
+---
+
+## Development
+
+Tool versions (Go, golangci-lint, Pulumi) are managed with [mise](https://mise.jdx.dev): run `mise trust` and `mise install` once, then use the usual commands (`make ...`, `go test ./...`).
 
 ---
 

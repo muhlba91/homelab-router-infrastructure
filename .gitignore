@@ -218,3 +218,6 @@ gcp-*-key.json
 ### Nix ###
 result
 result-*
+
+# mise
+mise.local.toml
