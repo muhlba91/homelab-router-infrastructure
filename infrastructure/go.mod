@@ -1,6 +1,6 @@
 module github.com/muhlba91/homelab-router-infrastructure
 
-go 1.27.0
+go 1.27.3
 
 require (
 	github.com/KitStream/netbird-pulumi-provider/sdk/go/netbird v0.0.0-20260919191558-542a8c184da4
