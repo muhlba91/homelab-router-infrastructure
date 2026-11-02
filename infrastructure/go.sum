@@ -208,6 +208,8 @@ github.com/muhlba91/pulumi-shared-library v0.0.0-20261029030914-68906385b86d h1:
 github.com/muhlba91/pulumi-shared-library v0.0.0-20261029030914-68906385b86d/go.mod h1:NJ9gmrXYFn2nGwWr3Ts8XLBUmc941LbxkeyAODc8gf8=
 github.com/muhlba91/pulumi-shared-library v0.0.0-20261031143940-b48c6eb91954 h1:CiZzs7Qw+fW9Yh3DX8n7yG/aZZclGULHVBQr6xqBhEk=
 github.com/muhlba91/pulumi-shared-library v0.0.0-20261031143940-b48c6eb91954/go.mod h1:mwS6L5akfPQFTbGrUyQWJbuQGFyguSnOw4hj5niHslc=
+github.com/muhlba91/pulumi-shared-library v0.0.0-20261102204916-a3d458ac016f h1:F4Tv96UlWkMj2Cyv9dnx6pTKWTnY9C/cUISh3CCFjyw=
+github.com/muhlba91/pulumi-shared-library v0.0.0-20261102204916-a3d458ac016f/go.mod h1:pUcMPfKy2qOQkaxiEUWi+S5UvnbsVJXQy0AULAaUN18=
 github.com/opentracing/basictracer-go v1.1.0 h1:Oa1fTSBvAl8pa3U+IJYqrKm0NALwH9OsgwOqDv4xJW0=
 github.com/opentracing/basictracer-go v1.1.0/go.mod h1:V2HZueSJEp879yv285Aap1BS69fQMD+MNP1mRs6mBQc=
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
@@ -234,10 +236,14 @@ github.com/pulumi/pulumi-random/sdk/v4 v4.21.3 h1:wlRJDBsbotZ0TliYNjmBnbBehWmcr6
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.3/go.mod h1:SQiqL8U7t62k2vdQVI9RajYzAg2OzBIW7Ta9mEKfRwM=
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.4 h1:j+8/B+itNUHaOF7FNcdpV6qXGAg58WSzPo+RBYnUv8w=
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.4/go.mod h1:SQiqL8U7t62k2vdQVI9RajYzAg2OzBIW7Ta9mEKfRwM=
+github.com/pulumi/pulumi-random/sdk/v4 v4.21.6 h1:BJwl6OVO9rVhHeiqJaujCOG7R4ZXBr0mypWNuuaCQfA=
+github.com/pulumi/pulumi-random/sdk/v4 v4.21.6/go.mod h1:DEp9uhlSMfmPZZ1qFBzUUv9K2fWZa9bB+e0bpjsE5IY=
 github.com/pulumi/pulumi-tls/sdk/v5 v5.6.1 h1:l5YQN6psVpSSI1DotTGPsI7inS+wrRg1V+2KHho9nfk=
 github.com/pulumi/pulumi-tls/sdk/v5 v5.6.1/go.mod h1:q1Vlza5M/u7bolULYI5FMEzZfytclcv2gFG+/RAlpL4=
 github.com/pulumi/pulumi-tls/sdk/v5 v5.6.2 h1:vGYS+Vq4EUMmXOLqT9fzhynrxzaronhNChANk4Vt1sA=
 github.com/pulumi/pulumi-tls/sdk/v5 v5.6.2/go.mod h1:YNg6YC7nKDfTnVpAfodeIRsOB/QwYrpVGuOGDl7YPxo=
+github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3 h1:u1vhOzJ+RyiHhjF+XY3QLDUO9dtU+LH6NTZ31J5RRb4=
+github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3/go.mod h1:4TsIx6Z2fZlhidjfQ1l3P7Hq2Whx5Aqaas6VQb2ykHE=
 github.com/pulumi/pulumi/sdk/v3 v3.268.0 h1:j9XuukM7q4Y3cqAxVXr9LCx82Nn7OxqsNrB8y7Y+jUg=
 github.com/pulumi/pulumi/sdk/v3 v3.268.0/go.mod h1:dRCRPrTZKXAp5XwcX+rKzrSBvDqmoCcrPVB1zwzIpao=
 github.com/pulumi/pulumi/sdk/v3 v3.269.0 h1:15v/0HLz/j/A45d2P8l0xNumPcxOBXX3CeWGxMcpHmo=
