@@ -1,6 +1,6 @@
 # Vars schema: the site itself (identity, management, trusted networks), its hardware and
 # system settings.
-{ lib, ... }:
+{ config, lib, ... }:
 let
   inherit (lib) mkOption types;
   inherit (import ./types.nix { inherit lib; })
@@ -26,19 +26,19 @@ in
       false; they get a nixosConfiguration (for CI) but no deploy-rs node.
     '';
     meta.deployAutomated = bool false ''
-      Whether CI deploys this site after every `pulumi up` on main (only a deployable
-      site). Off: the site is deployed by hand only (`./router deploy`), e.g. while its
-      router is being installed or before a cutover. Read by the deploy tooling only.
+      Whether CI deploys this site after every infrastructure update on main (only a
+      deployable site). Off: the site is deployed by hand only (`./router deploy`), e.g.
+      while its router is being installed or before a cutover.
     '';
     meta.deployOrder = nullable types.ints.unsigned ''
-      Position in the deploy order (from the site file's name, `<order>-<name>.yml`): the sites
-      are deployed in ascending order, sites without one last (by name). Read by the deploy
-      tooling only, never by the router's configuration.
+      Position in the deploy order: sites are deployed in ascending order, sites without one
+      last (by name). Only orders the fleet commands; it does not change the router's
+      configuration.
     '';
 
     site = {
-      name = str "Short site name (also the flake output name).";
-      hostname = str "Host name.";
+      name = str "Short site name; must equal the site's directory name (it is the flake output name).";
+      hostname = strD config.router.site.name "Host name of the router (defaults to site.name).";
       domain = str "DNS domain of the site (DHCP domain/search, radvd DNSSL).";
       timezone = strD "Etc/UTC" "Time zone.";
     };
@@ -47,9 +47,8 @@ in
       address = str "Address (or name) deploy-rs/SSH use. Prefer one that is routed through the mesh (symmetric return path).";
       sshKeys = strList [ ] "Public keys allowed for the `deploy` user.";
       hostKey = nullable types.str ''
-        The router's public SSH host key (`<type> <base64>`): sshd uses the matching private key
-        from the secret `ssh-host-key`, and ./router accepts only this key for the site.
-        null = sshd's own generated keys, accepted on first use.
+        The router's public SSH host key (`<type> <base64>`): sshd offers only the matching
+        private key from the secret `ssh-host-key`. null = sshd generates its own keys.
       '';
     };
 

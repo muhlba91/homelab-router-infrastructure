@@ -17,7 +17,7 @@
       sshKeys = [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFhl/9WAbovwuyCeVz+1yll3s5SVzWSnukMPnLs7a1ri fixture"
       ];
-      hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFhl/9WAbovwuyCeVz+1yll3s5SVzWSnukMPnLs7a1ri fixture";
+      hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFnd96yR8bCtuWIS2pPljlMyny3ZkQHR36Fj/KZWQ80 fixture-host";
     };
     trusted.onWan = true;
 

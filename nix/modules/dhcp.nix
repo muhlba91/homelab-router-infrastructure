@@ -1,4 +1,4 @@
-# DHCPv4 + DHCPv6 on the LAN (Kea): 12h leases, router/DNS/domain options, static
+# DHCPv4 + DHCPv6 on the LAN (Kea): 12 h leases, router/DNS/domain options, static
 # reservations.
 { config, ... }:
 let
@@ -13,27 +13,33 @@ let
   interfacesConfig = {
     interfaces = [ d.lanIf ];
     service-sockets-max-retries = 30;
-    service-sockets-retry-wait-time = 2000;
+    service-sockets-retry-wait-time = 2000; # ms
+  };
+
+  leaseSeconds = 12 * 3600;
+
+  # Settings both servers share; `kind` is "4" or "6".
+  common = kind: {
+    interfaces-config = interfacesConfig;
+    lease-database = {
+      name = "/var/lib/kea/dhcp${kind}.leases";
+      persist = true;
+      type = "memfile";
+    };
+    valid-lifetime = leaseSeconds;
+    loggers = [
+      {
+        name = "kea-dhcp${kind}";
+        output_options = [ { output = "stdout"; } ];
+        severity = "INFO";
+      }
+    ];
   };
 in
 {
   services.kea.dhcp4 = {
     enable = true;
-    settings = {
-      interfaces-config = interfacesConfig;
-      lease-database = {
-        name = "/var/lib/kea/dhcp4.leases";
-        persist = true;
-        type = "memfile";
-      };
-      valid-lifetime = 43200;
-      loggers = [
-        {
-          name = "kea-dhcp4";
-          output_options = [ { output = "stdout"; } ];
-          severity = "INFO";
-        }
-      ];
+    settings = common "4" // {
       subnet4 = [
         {
           id = 1;
@@ -69,22 +75,8 @@ in
 
   services.kea.dhcp6 = {
     enable = true;
-    settings = {
-      interfaces-config = interfacesConfig;
-      lease-database = {
-        name = "/var/lib/kea/dhcp6.leases";
-        persist = true;
-        type = "memfile";
-      };
-      valid-lifetime = 43200;
+    settings = common "6" // {
       mac-sources = [ "ipv6-link-local" ];
-      loggers = [
-        {
-          name = "kea-dhcp6";
-          output_options = [ { output = "stdout"; } ];
-          severity = "INFO";
-        }
-      ];
       subnet6 = [
         {
           id = 1;

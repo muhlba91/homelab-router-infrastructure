@@ -1,15 +1,12 @@
-# Secrets are FILES delivered outside Nix (./router push-secrets, or
-# nixos-anywhere --extra-files on first install) into /var/lib/secrets.
-# Nix only declares their names, owners and modes, never their values (the store is
-# world-readable, and vars.nix is copied to the router). Three mechanisms:
-#  1. activation guard: every activation (and boot) checks that each declared file
-#     exists and is non-empty, and applies owner/mode. A missing secret fails the
-#     activation, so deploy-rs rolls back instead of leaving a router with a broken
-#     service. (At boot a failure is only logged: the router must still come up.)
-#  2. a path unit per secret re-applies owner/mode and runs the secret's `reload`
-#     command when the file changes (rotation by a plain push; ./router writes only
-#     changed files and removes the ones no longer delivered).
-#  3. the directory is root-only for listing (0711); file modes protect the content.
+# Secrets are files delivered outside Nix (./router push-secrets, or nixos-anywhere
+# --extra-files on first install) into /var/lib/secrets. Nix declares only names, owners and
+# modes: the store is world-readable. Three mechanisms:
+#  1. activation guard: each declared file must exist and be non-empty, and gets its
+#     owner/mode. A missing secret fails the activation, so deploy-rs rolls back (at boot a
+#     failure is only logged: the router must still come up).
+#  2. a path unit per secret re-applies owner/mode and runs its `reload` command when the
+#     file changes (rotation by a plain push).
+#  3. the directory is not listable (0711); file modes protect the content.
 {
   config,
   lib,
@@ -18,7 +15,7 @@
 }:
 let
   inherit (lib) mkOption types;
-  dir = "/var/lib/secrets"; # also in ./router (SECRETS_DIR)
+  dir = "/var/lib/secrets"; # also SECRETS_DIR in ./router
   secrets = config.router.secrets;
   # Owner and mode only when they differ: PathChanged also fires on attribute changes, so
   # an unconditional chown/chmod would run every secret's reload on every activation.
@@ -53,7 +50,7 @@ let
           description = "File group.";
         };
         mode = mkOption {
-          type = types.str;
+          type = types.strMatching "0*[0-7]+";
           default = "0400";
           description = "File mode.";
         };

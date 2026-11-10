@@ -3,6 +3,17 @@
 {
   _module.args.rlib = rec {
     addr = cidr: builtins.head (lib.splitString "/" cidr);
+    # Quad9 resolvers (filtered, DNSSEC, no ECS): the router's fallback and AdGuard's bootstrap.
+    quad9 = {
+      v4 = [
+        "9.9.9.10"
+        "149.112.112.10"
+      ];
+      v6 = [
+        "2620:fe::10"
+        "2620:fe::fe:10"
+      ];
+    };
     quote = map (s: ''"${s}"'');
     nftSet = l: "{ ${lib.concatStringsSep ", " l} }";
     isV6 = a: lib.hasInfix ":" a;
@@ -19,6 +30,13 @@
         octet = i: toString (lib.mod (net / pow2 (8 * (3 - i))) 256);
       in
       "${lib.concatMapStringsSep "." octet (lib.range 0 3)}/${toString len}";
+    # Whether an IPv4 address lies inside a CIDR ("10.0.0.5" in "10.0.0.0/24").
+    within4 =
+      outer: ip:
+      let
+        len = builtins.elemAt (lib.splitString "/" outer) 1;
+      in
+      network4 "${ip}/${len}" == network4 outer;
     # Network of an IPv6 CIDR, uncompressed ("fd80:8a2:fd5a::1/127" -> "fd80:8a2:fd5a:0:0:0:0:0/127").
     network6 =
       cidr:

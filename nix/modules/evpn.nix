@@ -17,10 +17,53 @@
 let
   cfg = config.router;
   ev = cfg.evpn;
-  inherit (cfg.derived) evpnBridge evpnVxlan evpnRmac;
+  inherit (cfg.derived)
+    evpnBridge
+    evpnVxlan
+    evpnRmac
+    vxlanOverhead
+    vxlanPort
+    netbirdUnit
+    ;
   wt = cfg.transport.netbird.iface;
   # Whether an egress source lies inside a prefix of the site.
   ownSource = s: lib.any (p: rlib.within6 p.prefix s) cfg.publicV6;
+  # Policy rule priorities of the egress: the main table first (below the default rule of
+  # the main table, 32766), then the mesh table.
+  mainPrio = 500;
+  meshPrio = 501;
+
+  vtepScript = pkgs.writeShellApplication {
+    name = "evpn-vtep";
+    runtimeInputs = [
+      pkgs.iproute2
+      pkgs.jq
+    ];
+    text = ''
+      vtep=$(ip -j -4 addr show dev ${wt} 2>/dev/null | jq -r '.[0].addr_info[0].local // empty' || true)
+      # Not ready yet (e.g. NetBird restarting): the timer retries.
+      [ -n "$vtep" ] || { echo "${wt} has no IPv4 address yet"; exit 0; }
+      ip link show ${evpnBridge} >/dev/null 2>&1 || { echo "${evpnBridge} missing"; exit 1; }
+      if ip link show ${evpnVxlan} >/dev/null 2>&1; then
+        case "$(ip -d -o link show ${evpnVxlan})" in
+          *" local $vtep "*) ;;
+          *)
+            echo "VTEP changed: re-creating ${evpnVxlan} with local $vtep"
+            ip link del ${evpnVxlan}
+            ;;
+        esac
+      fi
+      if ! ip link show ${evpnVxlan} >/dev/null 2>&1; then
+        ip link add ${evpnVxlan} type vxlan id ${toString ev.vni} local "$vtep" dstport ${toString vxlanPort} nolearning
+        ip link set ${evpnVxlan} addrgenmode none
+        echo "${evpnVxlan}: local $vtep"
+      fi
+      # Every run: a changed configuration also reaches an existing device.
+      ip link set ${evpnVxlan} master ${evpnBridge} mtu ${toString ev.mtu}
+      ip link set ${evpnVxlan} type bridge_slave neigh_suppress on learning off
+      ip link set ${evpnVxlan} up
+    '';
+  };
 in
 {
   config = lib.mkIf ev.enable {
@@ -30,8 +73,8 @@ in
         message = "router.evpn needs router.transport.netbird (the VXLAN runs over the overlay)";
       }
       {
-        assertion = ev.mtu <= cfg.transport.netbird.mtu - 50;
-        message = "router.evpn.mtu must be at most router.transport.netbird.mtu - 50 (VXLAN overhead)";
+        assertion = ev.mtu <= cfg.transport.netbird.mtu - vxlanOverhead;
+        message = "router.evpn.mtu must be at most router.transport.netbird.mtu - ${toString vxlanOverhead} (VXLAN overhead)";
       }
       {
         assertion = cfg.bgp.enable;
@@ -81,13 +124,13 @@ in
             From = source;
             Table = "main";
             SuppressPrefixLength = 0;
-            Priority = 500;
+            Priority = mainPrio;
           }
           {
             Family = "ipv6";
             From = source;
             Table = ev.table;
-            Priority = 501;
+            Priority = meshPrio;
           }
         ]) ev.egress.sources
       );
@@ -123,92 +166,18 @@ in
       description = "VXLAN ${evpnVxlan} with the NetBird overlay IP as local VTEP";
       after = [
         "systemd-networkd.service"
-        "netbird-backbone.service"
+        "${netbirdUnit}.service"
       ];
-      wants = [ "netbird-backbone.service" ];
-      path = [ pkgs.iproute2 ];
-      serviceConfig.Type = "oneshot";
-      script = ''
-        set -eu
-        set -- $(ip -4 -o addr show dev ${wt} 2>/dev/null) ""
-        vtep=''${4:-}
-        vtep=''${vtep%/*}
-        # Not ready yet (e.g. NetBird restarting): the timer retries.
-        [ -n "$vtep" ] || { echo "${wt} has no IPv4 address yet"; exit 0; }
-        ip link show ${evpnBridge} >/dev/null 2>&1 || { echo "${evpnBridge} missing"; exit 1; }
-        if ip link show ${evpnVxlan} >/dev/null 2>&1; then
-          case "$(ip -d -o link show ${evpnVxlan})" in
-            *" local $vtep "*) ;;
-            *)
-              echo "VTEP changed: re-creating ${evpnVxlan} with local $vtep"
-              ip link del ${evpnVxlan}
-              ;;
-          esac
-        fi
-        if ! ip link show ${evpnVxlan} >/dev/null 2>&1; then
-          ip link add ${evpnVxlan} type vxlan id ${toString ev.vni} local "$vtep" dstport 4789 nolearning
-          ip link set ${evpnVxlan} addrgenmode none
-          echo "${evpnVxlan}: local $vtep"
-        fi
-        # Every run: a changed configuration also reaches an existing device.
-        ip link set ${evpnVxlan} master ${evpnBridge} mtu ${toString ev.mtu}
-        ip link set ${evpnVxlan} type bridge_slave neigh_suppress on learning off
-        ip link set ${evpnVxlan} up
-      '';
+      wants = [ "${netbirdUnit}.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = lib.getExe vtepScript;
+      };
     };
     systemd.timers.evpn-vtep = {
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnBootSec = "15s";
-        OnUnitActiveSec = "1min";
-      };
-    };
-
-    # Recovery of a NetBird client that stays in `Connecting` after its server was down: it
-    # keeps sending offers and never reconnects. The hub session lost for `after` minutes
-    # while the hub's overlay address does not answer means the tunnel is dead (a ping that
-    # works with BGP down is not NetBird's fault: no restart). State lives in /run.
-    systemd.services.evpn-recovery = lib.mkIf ev.recovery.enable {
-      description = "Restart the NetBird client when the hub stays unreachable";
-      after = [ "frr.service" ];
-      path = [
-        pkgs.coreutils
-        pkgs.frr
-        pkgs.iputils
-        pkgs.jq
-        pkgs.systemd
-      ];
-      serviceConfig = {
-        Type = "oneshot";
-        RuntimeDirectory = "evpn-recovery";
-        RuntimeDirectoryPreserve = "yes";
-      };
-      script = ''
-        set -eu
-        dir=/run/evpn-recovery
-        now=$(date +%s)
-        state=$(vtysh -c "show bgp neighbors ${ev.hubVtep} json" 2>/dev/null \
-          | jq -r '[.[] | .bgpState?][0] // empty' || true)
-        # FRR not answering is not a NetBird problem.
-        [ -n "$state" ] || exit 0
-        if [ "$state" = Established ] || ping -c 2 -W 2 ${ev.hubVtep} >/dev/null 2>&1; then
-          rm -f "$dir/down"
-          exit 0
-        fi
-        [ -e "$dir/down" ] || echo "$now" > "$dir/down"
-        down=$(cat "$dir/down")
-        [ $((now - down)) -ge ${toString (ev.recovery.after * 60)} ] || exit 0
-        last=$(cat "$dir/restart" 2>/dev/null || echo 0)
-        [ $((now - last)) -ge ${toString (ev.recovery.cooldown * 60)} ] || exit 0
-        echo "hub ${ev.hubVtep} ($state) lost for $(( (now - down) / 60 )) min, no ping answer: restarting netbird-backbone"
-        echo "$now" > "$dir/restart"
-        systemctl restart netbird-backbone.service
-      '';
-    };
-    systemd.timers.evpn-recovery = lib.mkIf ev.recovery.enable {
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnBootSec = "5min";
+        OnBootSec = "15s"; # the first enrollment may take a moment
         OnUnitActiveSec = "1min";
       };
     };

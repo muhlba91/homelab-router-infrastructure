@@ -9,6 +9,7 @@ let
   ups = cfg.hardware.ups;
   user = "upsmon";
   port = 3493;
+  retryDelay = "10s"; # long enough for a USB device to enumerate between attempts
   secret = config.router.secrets.nut-password.path;
 in
 lib.mkIf ups.enable {
@@ -40,7 +41,7 @@ lib.mkIf ups.enable {
   systemd.services.upsdrv = {
     serviceConfig = {
       Restart = "on-failure";
-      RestartSec = "10s";
+      RestartSec = retryDelay;
     };
     unitConfig.StartLimitIntervalSec = 0;
   };

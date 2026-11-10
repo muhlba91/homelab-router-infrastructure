@@ -49,6 +49,9 @@ TTY=-i
 [ -t 0 ] && [ -t 1 ] && TTY=-it
 IMAGE=${NX_IMAGE:-$(podman build -q - < Containerfile)}
 
+# MOUNTS, TTY and NX_PODMAN_ARGS are flag lists that must split into words (paths with
+# spaces are not supported), hence the SC2086 exemption.
+# sandbox = false: Nix's build sandbox needs privileges the rootless container lacks.
 # shellcheck disable=SC2086
 exec podman run --rm $TTY ${NX_PODMAN_ARGS:-} -v "$PWD":/work -w /work $MOUNTS \
   -v nixstore:/nix -e NX_RAW="$RAW" -e NX_KNOWN_HOSTS="${NX_KNOWN_HOSTS:-}" \

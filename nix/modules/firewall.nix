@@ -14,23 +14,39 @@ let
   nb = cfg.transport.netbird;
   ev = cfg.evpn;
   inherit (rlib) nftSet quote isV6;
-  # The WAN networks other sites may reach (router.wan.v4/v6.announce), else null.
-  wanNet = if cfg.wan.v4.announce then rlib.network4 cfg.wan.v4.address else null;
-  wanNet6 = if cfg.wan.v6.announce then rlib.network6 cfg.wan.v6.address else null;
+  inherit (d) vxlanPort;
   # Trusted sources count on the WAN only where it is a private network of ours.
   notWan = lib.optionalString (!cfg.trusted.onWan) ''iifname != "${wanIf}" '';
 
-  inherit (d) wanIf lanIf;
+  inherit (d) wanIf lanIf anyBfd;
+  wanNet = d.wanNet4;
+  inherit (d) wanNet6;
   meshIfs = cfg.mesh.interfaces; # set by modules/evpn.nix
   hasMesh = meshIfs != [ ];
   meshSet = nftSet (quote meshIfs);
 
   # BGP neighbors by address family of the neighbor *address* (none while BGP is off).
+  # Neighbors bound to an interface (`iface`) are accepted from that interface only (a
+  # directly connected peer must not be reachable from elsewhere with a forged source);
+  # the others (overlay hub, multihop) come in by address alone.
   peers = lib.optionals cfg.bgp.enable cfg.bgp.peers;
-  bgpPeers4 = map (p: p.address) (lib.filter (p: !(isV6 p.address)) peers);
-  bgpPeers6 = map (p: p.address) (lib.filter (p: isV6 p.address) peers);
-  anyBfd = lib.any (p: p.bfd) peers;
-  replyMark = "0x${lib.toHexString d.wanReply.mark}";
+  peersOf = v6: lib.filter (p: isV6 p.address == v6) peers;
+  bgpPeers4 = map (p: p.address) (lib.filter (p: p.iface == null) (peersOf false));
+  bgpPeers6 = map (p: p.address) (lib.filter (p: p.iface == null) (peersOf true));
+  # Accept rules for `match` (e.g. `tcp dport 179`) from the peers of one family.
+  peerRules =
+    v6: match: suffix:
+    let
+      fam = if v6 then "ip6" else "ip";
+      set = if v6 then "bgp_peers6" else "bgp_peers4";
+      byAddress = if v6 then bgpPeers6 else bgpPeers4;
+      bound = lib.filter (p: p.iface != null) (peersOf v6);
+    in
+    lib.concatStringsSep "\n        " (
+      lib.optional (byAddress != [ ]) "${fam} saddr @${set} ${match} accept${suffix}"
+      ++ map (p: ''iifname "${p.iface}" ${fam} saddr ${p.address} ${match} accept${suffix}'') bound
+    );
+  replyMark = d.wanReply.markHex;
   # Last rule before the drop policy: what is left from the WAN is dropped, rate-limited log.
   ld = cfg.firewall.logDrops;
   logDrop =
@@ -140,6 +156,10 @@ in
         type filter hook input priority filter; policy drop;
         ct state vmap { established : accept, related : accept, invalid : drop }
         iifname "lo" accept
+        # Echo from the WAN is limited per source; every other ICMP type stays open
+        # (neighbor discovery, router advertisements, path MTU discovery).
+        iifname "${wanIf}" icmp type echo-request meter icmp_echo4 { ip saddr limit rate over ${cfg.firewall.icmpEchoRate} } drop
+        iifname "${wanIf}" icmpv6 type echo-request meter icmp_echo6 { ip6 saddr limit rate over ${cfg.firewall.icmpEchoRate} } drop
         ip protocol icmp accept
         ip6 nexthdr icmpv6 accept
 
@@ -157,18 +177,14 @@ in
           ${lib.optionalString hasMesh "iifname != ${meshSet} "}udp dport ${toString nb.port} accept
         ''}
         # BGP only from the configured neighbours
-        ${lib.optionalString (bgpPeers4 != [ ]) "ip saddr @bgp_peers4 tcp dport 179 accept"}
-        ${lib.optionalString (bgpPeers6 != [ ]) "ip6 saddr @bgp_peers6 tcp dport 179 accept"}
-        ${lib.optionalString (
-          anyBfd && bgpPeers4 != [ ]
-        ) "ip saddr @bgp_peers4 udp dport { 3784, 4784 } accept # BFD"}
-        ${lib.optionalString (
-          anyBfd && bgpPeers6 != [ ]
-        ) "ip6 saddr @bgp_peers6 udp dport { 3784, 4784 } accept # BFD"}
+        ${peerRules false "tcp dport 179" ""}
+        ${peerRules true "tcp dport 179" ""}
+        ${lib.optionalString anyBfd (peerRules false "udp dport { 3784, 4784 }" " # BFD")}
+        ${lib.optionalString anyBfd (peerRules true "udp dport { 3784, 4784 }" " # BFD")}
         ${lib.optionalString ev.enable ''
           # EVPN: VXLAN only through the overlay, from its range (with enforcePolicies NetBird's
           # policies decide first). BGP to the hub is our outgoing session (the hub only listens).
-          iifname "${nb.iface}" ip saddr ${ev.underlay4} udp dport 4789 accept
+          iifname "${nb.iface}" ip saddr ${ev.underlay4} udp dport ${toString vxlanPort} accept
         ''}
         ${siteRules "extraInputRules"}
         ${logDrop "in"}

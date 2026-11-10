@@ -4,6 +4,14 @@
 let
   cfg = config.router;
   d = cfg.derived;
+  # Advertisement interval (s): frequent enough that hosts notice a restart quickly (RFC 4861
+  # allows 4-1800; max must be >= 4/3 of min).
+  minAdvInterval = 200;
+  maxAdvInterval = 300;
+  # Ethernet MTU of the LAN; advertised so hosts do not pick a larger one.
+  lanMtu = 1500;
+  # Hop limit hosts put into outgoing packets (the common default).
+  hopLimit = 64;
 in
 {
   services.radvd = {
@@ -11,10 +19,10 @@ in
     config = ''
       interface ${d.lanIf} {
         AdvSendAdvert on;
-        MinRtrAdvInterval 200;
-        MaxRtrAdvInterval 300;
-        AdvLinkMTU 1500;
-        AdvCurHopLimit 64;
+        MinRtrAdvInterval ${toString minAdvInterval};
+        MaxRtrAdvInterval ${toString maxAdvInterval};
+        AdvLinkMTU ${toString lanMtu};
+        AdvCurHopLimit ${toString hopLimit};
         AdvManagedFlag on;
         AdvOtherConfigFlag on;
         RemoveAdvOnExit on;

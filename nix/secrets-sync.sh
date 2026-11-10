@@ -15,6 +15,10 @@ tar -C "$t" --no-same-owner --no-same-permissions -xf -
   echo "no secrets received" >&2
   exit 1
 }
+[ -z "$(find "$t" -mindepth 1 ! -type f)" ] || {
+  echo "only regular files are accepted" >&2
+  exit 1
+}
 for f in "$d"/*; do
   n=${f##*/}
   if [ "$prune" = prune ] && [ -f "$f" ] && [ ! -e "$t/$n" ]; then
