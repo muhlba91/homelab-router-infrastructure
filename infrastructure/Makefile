@@ -1,21 +1,19 @@
 TESTPARALLELISM := 8
 
-WORKING_DIR := $(shell pwd)
-
 .PHONY: lint
-lint::
+lint:
 	golangci-lint run -c .golangci.yml
 	go vet ./...
 
 .PHONY: fix
-fix::
+fix:
 	golangci-lint fmt -c .golangci.yml
 
 .PHONY: test
-test::
-	go test -v -tags=all -parallel ${TESTPARALLELISM} -timeout 2h -covermode atomic -coverprofile=covprofile github.com/muhlba91/homelab-router-infrastructure/pkg/...
+test:
+	go test -v -parallel ${TESTPARALLELISM} -timeout 2h -covermode atomic -coverprofile=covprofile ./pkg/...
 
 .PHONY: coverage
-coverage::
+coverage:
 	go tool cover -html=covprofile -o coverage.html
-	open coverage.html
+	@echo "coverage report: $(CURDIR)/coverage.html"

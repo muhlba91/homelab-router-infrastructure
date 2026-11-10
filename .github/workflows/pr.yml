@@ -81,6 +81,7 @@ jobs:
     name: Unit Tests
     outputs:
       checks: ${{ steps.checks.outputs.checks }}
+      sites: ${{ steps.checks.outputs.sites }}
 
     steps:
       - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
@@ -121,7 +122,9 @@ jobs:
 
       # The checks of the rendered site files (named by flake checks.nix): the deploy nodes and one per site.
       - run: |
-          echo "checks=$(find render/outputs/sites -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | jq -Rnc '["deploy-schema"] + [inputs | "site-" + .]')" >> "$GITHUB_OUTPUT"
+          sites=$(find render/outputs/sites -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+          echo "checks=$(jq -Rnc '["deploy-schema"] + [inputs | "site-" + .]' <<< "$sites")" >> "$GITHUB_OUTPUT"
+          echo "sites=$(jq -Rnc '[inputs]' <<< "$sites")" >> "$GITHUB_OUTPUT"
         id: checks
 
   nix-list-checks:
@@ -139,7 +142,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -167,7 +170,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -239,7 +242,7 @@ jobs:
           workload_identity_provider: ${{ env.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT }}
 
-      - uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7
+      - uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7.1.0
         with:
           command: preview
           work-dir: infrastructure
@@ -312,7 +315,7 @@ jobs:
           name: sites-test
           path: sites
 
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -331,8 +334,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        site:
-          - lab-router-001
+        site: ${{ fromJSON(needs.test.outputs.sites) }}
     env:
       SITE: ${{ matrix.site }}
 
@@ -350,7 +352,7 @@ jobs:
           name: sites-test
           path: sites
 
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -383,7 +385,7 @@ jobs:
           name: sites-preview
           path: sites
 
-      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
