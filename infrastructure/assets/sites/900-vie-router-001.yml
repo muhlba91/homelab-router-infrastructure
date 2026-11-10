@@ -255,7 +255,6 @@ bgp:
   asn: 201421
   evpn:
     enabled: true
-  # transit: never for a neighbor that is itself a site (it would re-announce that site's prefixes: a loop)
   peers:
     - name: home-cluster
       address: "2a01:aea0:dd3:25a:1000:1:1:1"

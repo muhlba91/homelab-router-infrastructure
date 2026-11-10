@@ -17,14 +17,14 @@ import (
 	"github.com/muhlba91/homelab-router-infrastructure/pkg/lib/site"
 )
 
-// outputDir is the local directory the files are written to (the router fleet's OUTPUTS).
-const outputDir = "outputs"
-
-// secretPermissions are the permissions of the written files.
-const secretPermissions os.FileMode = 0o600
-
-// outputDirPermissions are the permissions of the output directories, which hold private keys.
-const outputDirPermissions os.FileMode = 0o700
+const (
+	// outputDir is the local directory the files are written to (the router fleet's OUTPUTS).
+	outputDir = "outputs"
+	// secretPermissions are the permissions of the written files.
+	secretPermissions os.FileMode = 0o600
+	// outputDirPermissions are the permissions of the output directories, which hold private keys.
+	outputDirPermissions os.FileMode = 0o700
+)
 
 // Run is the Pulumi program: it creates the resources of every site and writes its files.
 // ctx: The Pulumi context.
@@ -52,7 +52,8 @@ func Run(ctx *pulumi.Context) error {
 
 		var enrollKey pulumi.StringInput
 		if data.IsEnabled() && data.UsesCrowdSecConsole() {
-			secret, ok := pulumi.ToSecret(pulumi.String(defaults.GetOrDefault(crowdsecConfig.EnrollKey, ""))).(pulumi.StringOutput)
+			key := pulumi.String(defaults.GetOrDefault(crowdsecConfig.EnrollKey, ""))
+			secret, ok := pulumi.ToSecret(key).(pulumi.StringOutput)
 			if !ok {
 				return errors.New("the CrowdSec enroll key is not a string")
 			}
@@ -86,22 +87,24 @@ func siteOutput(siteData *site.Data) pulumi.Map {
 	return pulumi.Map{"passwords": passwords}
 }
 
-// writeOutputFiles writes the files of a site below outputs/ (the layout the router fleet's ./router reads) and
-// uploads them to the bucket under the same paths: sites/<site>/vars.nix and, for an enabled site,
-// keys/<site>/deploy-key (the deploy user's private key), keys/<site>/adguard-password (for logging in) and
-// keys/<site>/secrets/ (pushed to the router: the SSH host key, the AdGuard password hash, the NetBird setup key, the
-// NUT password, the CrowdSec console enroll key).
-// ctx: The Pulumi context.
+// outputFile is a file of a site below outputs/ and in the bucket.
+type outputFile struct {
+	// dir is the directory of the file below the output directory and the bucket path.
+	dir string
+	// name is the file name.
+	name string
+	// content is the content of the file.
+	content pulumi.StringInput
+}
+
+// outputFiles returns the files of a site: sites/<site>/vars.nix and, for what the site has, keys/<site>/deploy-key
+// (the deploy user's private key), keys/<site>/adguard-password (for logging in) and keys/<site>/secrets/ (pushed
+// to the router: the SSH host key, the AdGuard password hash, the NetBird setup key, the NUT password, the CrowdSec
+// console enroll key).
 // name: The name of the site.
 // siteData: The generated resources and files of the site.
 // enrollKey: The CrowdSec console enroll key; nil for a site that does not enroll.
-func writeOutputFiles(ctx *pulumi.Context, name string, siteData *site.Data, enrollKey pulumi.StringInput) error {
-	type outputFile struct {
-		dir     string
-		name    string
-		content pulumi.StringInput
-	}
-
+func outputFiles(name string, siteData *site.Data, enrollKey pulumi.StringInput) []outputFile {
 	keysDir := site.KeysDir(name)
 	secretsDir := path.Join(keysDir, "secrets")
 
@@ -120,13 +123,25 @@ func writeOutputFiles(ctx *pulumi.Context, name string, siteData *site.Data, enr
 	}
 	if siteData.AdguardPassword != nil {
 		files = append(files, outputFile{keysDir, "adguard-password", *siteData.AdguardPassword})
+	}
+	if siteData.AdguardPasswordHash != nil {
 		files = append(files, outputFile{secretsDir, "adguard-password-hash", *siteData.AdguardPasswordHash})
 	}
 	if enrollKey != nil {
 		files = append(files, outputFile{secretsDir, "crowdsec-enroll-key", enrollKey})
 	}
 
-	for _, file := range files {
+	return files
+}
+
+// writeOutputFiles writes the files of a site below outputs/ (the layout the router fleet's ./router reads) and
+// uploads them to the bucket under the same paths.
+// ctx: The Pulumi context.
+// name: The name of the site.
+// siteData: The generated resources and files of the site.
+// enrollKey: The CrowdSec console enroll key; nil for a site that does not enroll.
+func writeOutputFiles(ctx *pulumi.Context, name string, siteData *site.Data, enrollKey pulumi.StringInput) error {
+	for _, file := range outputFiles(name, siteData, enrollKey) {
 		// The files are written asynchronously, and a failed write is only logged: create the directory first.
 		outputPath := filepath.Join(".", outputDir, filepath.FromSlash(file.dir))
 		if err := os.MkdirAll(outputPath, outputDirPermissions); err != nil {

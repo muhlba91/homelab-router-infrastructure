@@ -8,10 +8,10 @@ type TransportConfig struct {
 
 // NetBirdConfig defines the NetBird transport configuration for a site.
 type NetBirdConfig struct {
-	// Enabled indicates whether NetBird is enabled for the site (default false).
+	// Enabled indicates whether NetBird is enabled for the site.
 	Enabled *bool `yaml:"enabled,omitempty"`
-	// Port is the local WireGuard port (default 51820).
+	// Port is the local WireGuard port.
 	Port *int `yaml:"port,omitempty"`
-	// MTU is the MTU of the NetBird interface (default 1420).
+	// MTU is the MTU of the NetBird interface.
 	MTU *int `yaml:"mtu,omitempty"`
 }

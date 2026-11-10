@@ -46,7 +46,7 @@ network:
     v6:
       - "fc00::/7"
       - "2001:678:dc0::/48"
-    # the WAN is site 3's LAN (10.100.0.0/16)
+    # the WAN is the LAN of hetzner-fra (10.100.0.0/16)
     wan: true
 
   loopbacks:

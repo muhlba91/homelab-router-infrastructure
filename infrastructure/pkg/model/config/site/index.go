@@ -2,43 +2,42 @@ package site
 
 import "github.com/muhlba91/pulumi-shared-library/pkg/util/defaults"
 
-// defaultEnabled is the default of Config.Enabled: a site is enabled explicitly.
-const defaultEnabled = false
-
-// defaultNetbirdEnabled is the default of NetBirdConfig.Enabled (the Nix default of transport.netbird.enable).
-const defaultNetbirdEnabled = false
-
-// defaultUPSEnabled is the default of UPSConfig.Enabled (the Nix default of hardware.ups.enable).
-const defaultUPSEnabled = false
-
-// defaultCrowdSecEnabled is the default of CrowdSecConfig.Enabled (the Nix default of security.crowdsec.enable).
-const defaultCrowdSecEnabled = true
-
-// defaultCrowdSecConsoleEnabled is the default of CrowdSecConsoleConfig.Enabled (the Nix default of
-// security.crowdsec.console.enable).
-const defaultCrowdSecConsoleEnabled = false
+// Defaults of the optional switches: the defaults of the Nix options, which an unset value leaves in place.
+const (
+	// defaultEnabled is the default of Config.Enabled: a site is enabled explicitly.
+	defaultEnabled = false
+	// defaultNetbirdEnabled is the default of NetBirdConfig.Enabled (transport.netbird.enable).
+	defaultNetbirdEnabled = false
+	// defaultUPSEnabled is the default of UPSConfig.Enabled (hardware.ups.enable).
+	defaultUPSEnabled = false
+	// defaultCrowdSecEnabled is the default of CrowdSecConfig.Enabled (security.crowdsec.enable).
+	defaultCrowdSecEnabled = true
+	// defaultCrowdSecConsoleEnabled is the default of CrowdSecConsoleConfig.Enabled
+	// (security.crowdsec.console.enable).
+	defaultCrowdSecConsoleEnabled = false
+)
 
 // Config defines Site-related configuration.
 type Config struct {
-	// Name is the name of the site: also its hostname and the name of its file ([<order>-]<name>.yml).
+	// Name is the name of the site: a hostname label, also the name of its file ([<order>-]<name>.yml).
 	Name string `yaml:"name"`
 	// DeployOrder is the number a file name starts with (<order>-<name>.yml): the sites are deployed in ascending
 	// order (sites without one last). Set from the file name, not part of the file.
 	DeployOrder *int `yaml:"-"`
-	// Enabled indicates whether the site may be deployed. Default false: a site is enabled explicitly, never by a
-	// file that is still being written. A disabled site is still rendered and checked, but gets no generated keys
+	// Enabled indicates whether the site may be deployed; unset means false, so a file that is still being written
+	// is never deployed. A disabled site is still rendered and checked, but gets no generated keys
 	// or secrets. Disabling a deployed site deletes them: after re-enabling it, the router still has the old deploy
 	// key and host key, so the first deploy needs a static key and the new host key pushed by hand (or a reinstall).
 	Enabled *bool `yaml:"enabled,omitempty"`
 	// Deploy is the deployment configuration (automated deploys by CI) of the site.
 	Deploy *DeployConfig `yaml:"deploy,omitempty"`
-	// Hardware is the hardware configuration of the site.
+	// Hardware is the hardware configuration of the site (required).
 	Hardware *HardwareConfig `yaml:"hardware"`
 	// System is the system configuration (watchdog, garbage collection) of the site.
 	System *SystemConfig `yaml:"system,omitempty"`
-	// Network is the network configuration of the site.
+	// Network is the network configuration of the site (required).
 	Network *NetworkConfig `yaml:"network"`
-	// DHCP is the DHCP configuration of the site.
+	// DHCP is the DHCP configuration of the site (required).
 	DHCP *DHCPConfig `yaml:"dhcp"`
 	// DNS is the DNS configuration of the site.
 	DNS *DNSConfig `yaml:"dns,omitempty"`
@@ -50,7 +49,7 @@ type Config struct {
 	Observability *ObservabilityConfig `yaml:"observability,omitempty"`
 	// Transport is the transport configuration of the site.
 	Transport *TransportConfig `yaml:"transport,omitempty"`
-	// BGP is the BGP configuration of the site.
+	// BGP is the BGP configuration of the site; unset: no BGP section is rendered.
 	BGP *BGPConfig `yaml:"bgp"`
 }
 
