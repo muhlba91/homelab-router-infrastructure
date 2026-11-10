@@ -221,3 +221,6 @@ result-*
 
 # mise
 mise.local.toml
+
+# fnox
+fnox.local.toml

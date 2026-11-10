@@ -216,19 +216,17 @@ jobs:
           role: ${{ secrets.VAULT_ROLE }}
           exportToken: true
           outputToken: true
-          secrets: |
-            github-homelab-router-infrastructure/data/google-cloud region | CLOUDSDK_COMPUTE_REGION ;
-            github-homelab-router-infrastructure/data/google-cloud workload_identity_provider | GOOGLE_WORKLOAD_IDENTITY_PROVIDER ;
-            github-homelab-router-infrastructure/data/google-cloud ci_service_account | GOOGLE_WORKLOAD_IDENTITY_SERVICE_ACCOUNT ;
-            github-homelab-router-infrastructure/data/scaleway organization_id | SCW_ORGANIZATION_ID ;
-            github-homelab-router-infrastructure/data/scaleway project_id | SCW_PROJECT_ID ;
-            github-homelab-router-infrastructure/data/scaleway region | SCW_DEFAULT_REGION ;
-            github-homelab-router-infrastructure/data/scaleway zone | SCW_DEFAULT_ZONE ;
-            github-homelab-router-infrastructure/data/scaleway access_key | SCW_ACCESS_KEY ;
-            github-homelab-router-infrastructure/data/scaleway secret_key | SCW_SECRET_KEY ;
-            github-homelab-router-infrastructure/data/scaleway region | AWS_REGION ;
-            github-homelab-router-infrastructure/data/scaleway access_key | AWS_ACCESS_KEY_ID ;
-            github-homelab-router-infrastructure/data/scaleway secret_key | AWS_SECRET_ACCESS_KEY
+          # login only: the secrets are read by fnox (fnox.toml), the same list as on the developer machines
+
+      - name: Load secrets
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+        run: |
+          fnox ci-redact
+          fnox export --format json \
+            | jq -r '.secrets | to_entries[]
+                | if (.value | test("\n")) then error("multi-line value: \(.key)") else "\(.key)=\(.value)" end' \
+            >> "$GITHUB_ENV"
 
       - uses: pulumi/auth-actions@273044cc19e63ea565285da8edd4e059126a0bdb # v2.1.2
         with:
@@ -254,7 +252,11 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
       # The routers' data before (the bucket: the last `pulumi up`) and after (the preview) this pull request.
-      - run: |
+      - env:
+          AWS_REGION: ${{ env.SCW_DEFAULT_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ env.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.SCW_SECRET_KEY }}
+        run: |
           aws s3 cp --recursive --only-show-errors --endpoint-url "https://s3.$AWS_REGION.scw.cloud" \
             "s3://$(yq '.config."homelab-router-infrastructure:bucketId"' Pulumi.prod.yaml)/router-infrastructure/prod/sites/" live/
           diff -ru live outputs/sites > vars.diff || true
