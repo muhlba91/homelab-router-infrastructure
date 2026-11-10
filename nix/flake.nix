@@ -2,7 +2,7 @@
   description = "NixOS router fleet: one module set, one generated vars file per site, deployed with deploy-rs";
 
   inputs = {
-    # Stable release (supported until 2026-12-31); Renovate proposes the next one.
+    # Stable release; Renovate proposes the next one.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     deploy-rs = {

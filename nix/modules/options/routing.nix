@@ -16,6 +16,12 @@ let
     mtu
     ;
 
+  policy = types.enum [
+    "strict"
+    "allow-all"
+    "deny-all"
+  ];
+
   bgpPeer = types.submodule {
     options = {
       name = str "Description of the neighbor (also used in FRR).";
@@ -37,22 +43,14 @@ let
       v4 = bool true "Activate IPv4 unicast on this neighbor.";
       v6 = bool true "Activate IPv6 unicast on this neighbor.";
       inPolicy = mkOption {
-        type = types.enum [
-          "strict"
-          "allow-all"
-          "deny-all"
-        ];
+        type = policy;
         default = "strict";
-        description = "`strict`: accept only router.bgp.accept4/accept6 (any length), never our own originated prefixes back.";
+        description = "Routes accepted from this neighbor. `strict`: only router.bgp.accept4/accept6 (any length), never our own originated prefixes back; `allow-all`: everything; `deny-all`: nothing.";
       };
       outPolicy = mkOption {
-        type = types.enum [
-          "strict"
-          "allow-all"
-          "deny-all"
-        ];
+        type = policy;
         default = "strict";
-        description = "`strict`: announce only router.bgp.originate4/6.";
+        description = "Routes announced to this neighbor. `strict`: only router.bgp.originate4/6 and the other own prefixes (loopbacks, announced WAN networks, publicV6); `allow-all`: everything; `deny-all`: nothing.";
       };
       transit = bool false "Pass the routes accepted from this neighbor on to the other sites through EVPN (e.g. a k8s cluster with changing prefixes). Needs inPolicy `strict` and router.evpn. Never for a neighbor that is itself a site (a loop).";
     };
@@ -106,22 +104,24 @@ in
         EVPN/L3VNI over the NetBird underlay (needs transport.netbird): VRF + VXLAN + iBGP
         to the hub, which reflects the routes between the sites (modules/evpn.nix, bgp.nix).
       '';
-      hubVtep = typed ip4 "Hub overlay IPv4 (its VTEP and our only EVPN neighbor; hub repo stack output `netbird.client.ipv4`).";
+      hubVtep = typed ip4 "The hub's NetBird overlay IPv4 (its VTEP and our only EVPN neighbor).";
       underlay4 =
         typedD cidr4 "10.253.0.0/16"
           "NetBird IPv4 network range: VXLAN accepted from it, never learned through the overlay.";
       vrf = strD "mesh" "VRF that carries the L3VNI (the LAN stays in the default VRF; routes are leaked).";
-      vni = typedD (types.ints.between 1 16777215) 50001 "L3VNI (50000+ = L3VNIs). Must match the hub.";
+      vni =
+        typedD (types.ints.between 1 16777215) 50001
+          "VXLAN network identifier of the L3VNI. Must match the hub.";
       table = typedD types.ints.positive 1001 "Kernel routing table of the VRF.";
       mtu = mkOption {
         type = mtu;
-        default = config.router.transport.netbird.mtu - 50;
+        default = config.router.transport.netbird.mtu - config.router.derived.vxlanOverhead;
         defaultText = lib.literalExpression "router.transport.netbird.mtu - 50";
-        description = "MTU of the VXLAN path: at most the NetBird MTU - 50 (VXLAN overhead).";
+        description = "MTU of the VXLAN path: at most the NetBird MTU minus the 50 bytes VXLAN adds.";
       };
       egress = {
         enable = bool false ''
-          Internet egress of exposed services through the hub (needs its `bgp.evpn.egress`): the
+          Internet egress of exposed services through the hub (the hub must originate a default route into the mesh): the
           provider of the site drops sources of the public prefixes, so their packets use the
           default route of the mesh table (originated by the hub) unless a more specific route
           exists. Everything else keeps the site's default route.

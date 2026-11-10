@@ -19,13 +19,14 @@ consumes.
   `modules/options/`), `hardware/` (hardware profiles), `tests/` (checks, eval tests, fixtures), `router`, `nx` and
   its image (`Containerfile`)
 - [docs/](docs/): [Proxmox](docs/proxmox.md) (host, router VM, first install), [physical router](docs/physical.md)
-  (bench install and swap) and [router validation](docs/validation.md)
+  (bench install and swap), [router validation](docs/validation.md) and the move from a public LAN IPv6 prefix to
+  [ULA + NAT66](docs/ula-nat66.md)
 
 ---
 
 ## Requirements
 
-- [mise](https://mise.jdx.dev) for Go, golangci-lint and Pulumi (see [Development](#development))
+- [mise](https://mise.jdx.dev) for Go, golangci-lint, Pulumi, fnox and Vault (see [Development](#development))
 - [podman](https://podman.io) for the NixOS routers in [nix/](nix/) (or a local [Nix](https://nixos.org/download/))
 
 ## Creating the Infrastructure
@@ -223,13 +224,15 @@ The services of a site can be overridden in its site file (`firewall.services`);
 | 4789 | UDP | NetBird overlay | VXLAN of the EVPN overlay (with EVPN; only from the overlay range on the NetBird interface) |
 | 546 | UDP | wan | DHCPv6 client replies (with DHCPv6 on the WAN) |
 
+ICMP and ICMPv6 are accepted from everywhere; echo requests from the WAN are limited per source (`firewall.icmpEchoRate`).
+
 Outgoing only (no port opened): logs to the central Vector (`observability.logging.vector`), CrowdSec's hub and community blocklist, NetBird's management service.
 
 ---
 
 ## Development
 
-Tool versions (Go, golangci-lint, Pulumi) are managed with [mise](https://mise.jdx.dev): run `mise trust` and `mise install` once, then use the usual commands (`make ...`, `go test ./...`).
+Tool versions (Go, golangci-lint, Pulumi, fnox, Vault) are managed with [mise](https://mise.jdx.dev): run `mise trust` and `mise install` once, then use the usual commands (`make ...`, `go test ./...`).
 
 ---
 
@@ -238,7 +241,7 @@ Tool versions (Go, golangci-lint, Pulumi) are managed with [mise](https://mise.j
 - [GitHub Actions](https://docs.github.com/en/actions):
   - pull requests: the Go lint and tests; every Nix flake check as its own job (on the fixtures); the Pulumi preview,
     commented on the pull request with the diff of every router's `vars.nix`; the Nix checks of every site on the
-    rendered site files; a complete build of selected router systems (`Nix Build`, a matrix of sites);
+    rendered site files; a complete build of every rendered router system (`Nix Build`, a matrix of sites);
   - `main`: the preview and the Nix checks gate `pulumi up`; then every router with `deploy.automated` is deployed in deploy order
     (`./router deploy`, one at a time, a failure stops the rest, a current router is skipped) and checked with
     `./router health`. The runner reaches the routers through Tailscale (`tag:github-actions` needs SSH to their

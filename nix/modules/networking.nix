@@ -91,9 +91,9 @@ in
   # (openresolv drops non-local servers unless resolv_conf_local_only=NO; glibc reads 3).
   networking.nameservers = [
     "127.0.0.1"
-    "9.9.9.10"
+    (lib.head rlib.quad9.v4)
   ]
-  ++ lib.optional (wan.v6.method != "none") "2620:fe::10";
+  ++ lib.optional (wan.v6.method != "none") (lib.head rlib.quad9.v6);
   networking.resolvconf.extraConfig = "resolv_conf_local_only=NO";
 
   boot.kernel.sysctl = {
@@ -109,6 +109,9 @@ in
     "net.ipv4.conf.all.send_redirects" = 0;
     "net.ipv4.conf.default.send_redirects" = 0;
     "net.ipv4.conf.all.accept_source_route" = 0;
+    "net.ipv4.conf.default.accept_source_route" = 0;
+    "net.ipv6.conf.all.accept_source_route" = 0;
+    "net.ipv6.conf.default.accept_source_route" = 0;
     "net.ipv4.tcp_syncookies" = 1;
   };
 

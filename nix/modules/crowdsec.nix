@@ -1,9 +1,7 @@
-# CrowdSec (router.security.crowdsec): detects attacks (brute force, port scans) in sshd's
-# log and the firewall's drop log and bans their sources, plus the community blocklist. The
-# bouncer applies the bans in its own nftables tables (`crowdsec`, `crowdsec6`, before our
-# filter), which our reloads leave alone. Local API 127.0.0.1:8080; state and API
-# credentials (created on the first start) in /var/lib/crowdsec. Optionally enrolled once in
-# the CrowdSec console (security.crowdsec.console).
+# CrowdSec (router.security.crowdsec): bans sources of attacks seen in sshd's log and the
+# firewall's drop log, plus the community blocklist. The bouncer applies the bans in its own
+# nftables tables (`crowdsec`, `crowdsec6`, before our filter), which our reloads leave alone.
+# State and API credentials (created on the first start) live in /var/lib/crowdsec.
 {
   config,
   lib,
@@ -15,8 +13,7 @@ let
   cs = cfg.security.crowdsec;
   state = "/var/lib/crowdsec/state";
   inherit (config.services.crowdsec) user group;
-  # The console's sharing options: `cscli console enroll` rewrites this file, so it must not
-  # live in the store. Seeded from the module's options (all sharing off).
+  # `cscli console enroll` rewrites this file, so it cannot live in the store.
   consoleConfig = "${state}/console.yaml";
   enrolled = "${state}/console-enrolled";
   # Never banned by a detection: our networks (a manual decision still applies).
@@ -100,9 +97,9 @@ lib.mkMerge [
 
     # Workarounds for the NixOS modules:
     # * the online API's credentials file must exist (empty) before the first registration;
-    # * the bouncer's registration runs a bare `cscli` (reads /etc/crowdsec/config.yaml) and,
-    #   as a dynamic user, would move /var/lib/crowdsec to /var/lib/private;
-    # * the bouncer must start after its registration (else it misses the API key);
+    # * the registration runs a bare `cscli` (reads /etc/crowdsec/config.yaml), and as a
+    #   dynamic user it would move /var/lib/crowdsec to /var/lib/private;
+    # * the bouncer must start after its registration, else it misses the API key;
     # * crowdsec.service needs its directories at start (a deploy creates them in parallel).
     systemd.tmpfiles.settings."11-crowdsec-capi"."${state}/online_api_credentials.yaml".f = {
       inherit user group;
@@ -151,8 +148,8 @@ lib.mkMerge [
     };
 
     services.crowdsec.settings.general.api.server.console_path = consoleConfig;
-    # Installed (not by tmpfiles: it refuses to hand a root-created file in crowdsec's
-    # directory over to crowdsec) when missing or not crowdsec's, before crowdsec starts.
+    # Seeded when missing or not crowdsec's (not by tmpfiles: it refuses to hand over a
+    # root-created file in crowdsec's directory), with all sharing off.
     systemd.services.crowdsec-dirs.serviceConfig.ExecStartPost =
       let
         seed =
@@ -160,6 +157,7 @@ lib.mkMerge [
             config.services.crowdsec.settings.console.configuration;
       in
       pkgs.writeShellScript "crowdsec-console-config" ''
+        set -eu
         [ "$(stat -c %U ${consoleConfig} 2>/dev/null)" = ${user} ] \
           || install -o ${user} -g ${group} -m 0600 ${seed} ${consoleConfig}
       '';

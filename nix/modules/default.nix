@@ -3,9 +3,12 @@
   imports = [
     ./options
     ./helpers.nix
+    ./validation.nix
     ./derived.nix
     ./secrets.nix
     ./base.nix
+    ./ssh.nix
+    ./nix.nix
     ./networking.nix
     ./firewall.nix
     ./crowdsec.nix
@@ -18,6 +21,7 @@
     ./ups.nix
     ./bgp.nix
     ./evpn.nix
+    ./evpn-recovery.nix
     ./transport/netbird.nix
     ./health.nix
   ];

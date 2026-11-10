@@ -30,7 +30,7 @@ in
         address = "http://${lv.address}";
         buffer = {
           type = "disk";
-          max_size = 268435488; # Vector's minimum for a disk buffer (256 MiB)
+          max_size = 268435488; # Vector's minimum for a disk buffer (~256 MiB)
           when_full = "drop_newest";
         };
       };

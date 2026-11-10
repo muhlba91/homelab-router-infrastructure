@@ -25,11 +25,11 @@ let
   announced = lib.filter (l: l.announce) cfg.loopbacks;
   own4 =
     bgp.originate4
-    ++ lib.optional cfg.wan.v4.announce (rlib.network4 cfg.wan.v4.address)
+    ++ lib.optional (d.wanNet4 != null) d.wanNet4
     ++ map (l: "${l.address}/32") (lib.filter (l: !isV6 l.address) announced);
   own6 =
     bgp.originate6
-    ++ lib.optional cfg.wan.v6.announce (rlib.network6 cfg.wan.v6.address)
+    ++ lib.optional (d.wanNet6 != null) d.wanNet6
     ++ map (p: p.prefix) cfg.publicV6
     ++ map (l: "${l.address}/128") (lib.filter (l: isV6 l.address) announced);
   # "<list> seq N <action> <prefix> le <max>" lines, numbered from `start` in steps of 10.
@@ -43,9 +43,60 @@ let
     ) prefixes;
   ev = cfg.evpn;
   inherit (bgp) peers;
-  peersV4 = lib.filter (p: p.v4) peers;
-  peersV6 = lib.filter (p: p.v6) peers;
-  anyBfd = lib.any (p: p.bfd) peers;
+  inherit (d) anyBfd;
+  # Prefixes every line of `s` (an empty `s` gives the bare indentation) with `n` spaces.
+  indent =
+    n: s: lib.concatMapStringsSep "\n" (l: lib.fixedWidthString n " " "" + l) (lib.splitString "\n" s);
+  lines = lib.concatStringsSep "\n";
+  # Per address family: FRR's name, route-map prefix match, map name suffix, prefix lists
+  # (inbound / own), the neighbors using it and the networks announced.
+  families = {
+    v4 = {
+      af = "ipv4";
+      match = "ip";
+      sfx = "";
+      list = "IN4";
+      out = "OUT4";
+      own = own4;
+      ps = lib.filter (p: p.v4) peers;
+    };
+    v6 = {
+      af = "ipv6";
+      match = "ipv6";
+      sfx = "6";
+      list = "IN6";
+      out = "OUT6";
+      own = own6;
+      ps = lib.filter (p: p.v6) peers;
+    };
+  };
+  # The `address-family` block of a family inside `router bgp`.
+  afBlock =
+    f:
+    lines [
+      " address-family ${f.af} unicast"
+      (indent 2 (lines (map (n: "network ${n}") f.own)))
+      (indent 2 (
+        lines (
+          lib.concatMap (
+            p:
+            [ "neighbor ${p.address} activate" ]
+            ++ lib.optional p.nextHopSelf "neighbor ${p.address} next-hop-self"
+            ++ [
+              "neighbor ${p.address} route-map ${inMap f.sfx p} in"
+              "neighbor ${p.address} route-map ${mapName "PEER-OUT${f.sfx}" p.outPolicy} out"
+            ]
+          ) f.ps
+        )
+      ))
+      (indent 2 (
+        lib.optionalString ev.enable (lines [
+          "import vrf ${ev.vrf}"
+          "import vrf route-map PEER-IN${f.sfx}"
+        ])
+      ))
+      " exit-address-family"
+    ];
   marker = "${toString bgp.asn}:0:1";
   hasTransit = lib.any (p: p.transit) peers;
   # Removes the transit marker from a route (inbound from non-transit neighbors, into EVPN).
@@ -61,31 +112,42 @@ let
       if hasTransit then "ALLOW-ALL-IN" else "ALLOW-ALL"
     else
       "PEER-IN${sfx}";
-  # Strict inbound maps (`fam`: "ip"/"ipv6", `list`: IN4/IN6) and the leak into the VRF
-  # (`out`: OUT4/OUT6); the transit parts only when a neighbor uses them.
-  familyMaps = sfx: fam: list: out: ''
-    route-map PEER-IN${sfx} permit 10
-     match ${fam} address prefix-list ${list}${strip}
-    exit
-    route-map PEER-OUT${sfx} permit 10
-     match ${fam} address prefix-list ${out}
-    exit${lib.optionalString hasTransit ''
-
-      route-map PEER-IN${sfx}-TRANSIT permit 10
-       match ${fam} address prefix-list ${list}
-       set large-community ${marker} additive
-      exit''}${lib.optionalString ev.enable ''
-
-      route-map MESH-OUT${sfx} permit 10
+  # Strict inbound maps and the leak into the VRF of a family; the transit parts only when a
+  # neighbor uses them.
+  familyMaps =
+    {
+      sfx,
+      match,
+      list,
+      out,
+      ...
+    }:
+    let
+      fam = match;
+    in
+    ''
+      route-map PEER-IN${sfx} permit 10
+       match ${fam} address prefix-list ${list}${strip}
+      exit
+      route-map PEER-OUT${sfx} permit 10
        match ${fam} address prefix-list ${out}
-      exit''}${
-      lib.optionalString (ev.enable && hasTransit) ''
+      exit${lib.optionalString hasTransit ''
 
-        route-map MESH-OUT${sfx} permit 20
-         match large-community TRANSIT
-         match ${fam} address prefix-list ${list}${strip}
-        exit''
-    }'';
+        route-map PEER-IN${sfx}-TRANSIT permit 10
+         match ${fam} address prefix-list ${list}
+         set large-community ${marker} additive
+        exit''}${lib.optionalString ev.enable ''
+
+        route-map MESH-OUT${sfx} permit 10
+         match ${fam} address prefix-list ${out}
+        exit''}${
+        lib.optionalString (ev.enable && hasTransit) ''
+
+          route-map MESH-OUT${sfx} permit 20
+           match large-community TRANSIT
+           match ${fam} address prefix-list ${list}${strip}
+          exit''
+      }'';
 
   mapName =
     strict: pol:
@@ -160,8 +222,8 @@ lib.mkIf bgp.enable {
     ${plist "ipv6 prefix-list" "IN6" 1000 "permit" 128 bgp.accept6}
     !
     ${lib.optionalString hasTransit "bgp large-community-list standard TRANSIT seq 5 permit ${marker}"}
-    ${familyMaps "" "ip" "IN4" "OUT4"}
-    ${familyMaps "6" "ipv6" "IN6" "OUT6"}${extraMaps}
+    ${familyMaps families.v4}
+    ${familyMaps families.v6}${extraMaps}
     !
     ${lib.optionalString ev.enable ''
       route-map SRC4 permit 10
@@ -169,26 +231,33 @@ lib.mkIf bgp.enable {
       exit
       ip protocol bgp route-map SRC4
       !''}
-    ${lib.optionalString ev.enable "vrf ${ev.vrf}\n vni ${toString ev.vni}\nexit-vrf\n!"}
+    ${lib.optionalString ev.enable (lines [
+      "vrf ${ev.vrf}"
+      " vni ${toString ev.vni}"
+      "exit-vrf"
+      "!"
+    ])}
     router bgp ${toString bgp.asn}
      bgp router-id ${bgp.routerId}
      no bgp default ipv4-unicast
-     ${lib.concatMapStringsSep "\n " (
-       p:
-       lib.concatStringsSep "\n " (
-         [
-           "neighbor ${p.address} remote-as ${toString p.remoteAs}"
-           "neighbor ${p.address} description ${p.name}"
-         ]
-         ++ lib.optional (p.iface != null) "neighbor ${p.address} interface ${p.iface}"
-         ++ lib.optional p.disableConnectedCheck "neighbor ${p.address} disable-connected-check"
-         ++ lib.optionals (p.multihop != null) [
-           "neighbor ${p.address} ebgp-multihop ${toString p.multihop}"
-           "neighbor ${p.address} update-source ${updateSource p}"
-         ]
-         ++ lib.optional p.bfd "neighbor ${p.address} bfd"
-       )
-     ) peers}
+    ${indent 1 (
+      lines (
+        lib.concatMap (
+          p:
+          [
+            "neighbor ${p.address} remote-as ${toString p.remoteAs}"
+            "neighbor ${p.address} description ${p.name}"
+          ]
+          ++ lib.optional (p.iface != null) "neighbor ${p.address} interface ${p.iface}"
+          ++ lib.optional p.disableConnectedCheck "neighbor ${p.address} disable-connected-check"
+          ++ lib.optionals (p.multihop != null) [
+            "neighbor ${p.address} ebgp-multihop ${toString p.multihop}"
+            "neighbor ${p.address} update-source ${updateSource p}"
+          ]
+          ++ lib.optional p.bfd "neighbor ${p.address} bfd"
+        ) peers
+      )
+    )}
      ${lib.optionalString ev.enable ''
        neighbor ${ev.hubVtep} remote-as internal
         neighbor ${ev.hubVtep} description hub-evpn
@@ -196,39 +265,9 @@ lib.mkIf bgp.enable {
         neighbor ${ev.hubVtep} timers 10 30
         neighbor ${ev.hubVtep} timers connect 10''}
      !
-     address-family ipv4 unicast
-      ${lib.concatMapStringsSep "\n  " (n: "network ${n}") own4}
-      ${lib.concatMapStringsSep "\n  " (
-        p:
-        lib.concatStringsSep "\n  " (
-          [ "neighbor ${p.address} activate" ]
-          ++ lib.optional p.nextHopSelf "neighbor ${p.address} next-hop-self"
-          ++ [
-            "neighbor ${p.address} route-map ${inMap "" p} in"
-            "neighbor ${p.address} route-map ${mapName "PEER-OUT" p.outPolicy} out"
-          ]
-        )
-      ) peersV4}
-      ${lib.optionalString ev.enable "import vrf ${ev.vrf}
-  import vrf route-map PEER-IN"}
-     exit-address-family
+    ${afBlock families.v4}
      !
-     address-family ipv6 unicast
-      ${lib.concatMapStringsSep "\n  " (n: "network ${n}") own6}
-      ${lib.concatMapStringsSep "\n  " (
-        p:
-        lib.concatStringsSep "\n  " (
-          [ "neighbor ${p.address} activate" ]
-          ++ lib.optional p.nextHopSelf "neighbor ${p.address} next-hop-self"
-          ++ [
-            "neighbor ${p.address} route-map ${inMap "6" p} in"
-            "neighbor ${p.address} route-map ${mapName "PEER-OUT6" p.outPolicy} out"
-          ]
-        )
-      ) peersV6}
-      ${lib.optionalString ev.enable "import vrf ${ev.vrf}
-  import vrf route-map PEER-IN6"}
-     exit-address-family
+    ${afBlock families.v6}
      ${lib.optionalString ev.enable ''
        !
         address-family l2vpn evpn

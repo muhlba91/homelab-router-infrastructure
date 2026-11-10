@@ -8,7 +8,6 @@
 
     site = {
       name = "fixture-home";
-      hostname = "fixture-home";
       domain = "home.example.org";
     };
 

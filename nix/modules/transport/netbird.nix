@@ -4,8 +4,6 @@
 # the traffic arriving on wt0, and our nftables are the fallback while it is down.
 # The setup key is a file (router.secrets), only used for the first login: the client
 # keeps its identity in its state directory afterwards.
-# The client is nixpkgs' package and may be older than the hub's server (0.71.4 against a
-# 0.80.0 server works); test a server upgrade on the lab first.
 {
   config,
   lib,

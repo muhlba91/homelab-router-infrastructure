@@ -49,7 +49,7 @@ in
     frr = lib.mkIf (has "frr") {
       enable = true;
       enabledCollectors = [ "bgp6" ] ++ lib.optional cfg.evpn.enable "bgpl2vpn";
-      disabledCollectors = [ "ospf" ] ++ lib.optional (!lib.any (p: p.bfd) cfg.bgp.peers) "bfd";
+      disabledCollectors = [ "ospf" ] ++ lib.optional (!cfg.derived.anyBfd) "bfd";
     };
     smartctl.enable = has "smartctl";
     # Reads the UPS from upsd on loopback (reading needs no login).

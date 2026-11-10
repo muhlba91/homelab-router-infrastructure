@@ -14,39 +14,39 @@ let
     cidr6
     ;
 
-  forward4 = types.submodule {
-    options = {
-      proto = mkOption {
-        type = types.enum [
-          "tcp"
-          "udp"
-        ];
-        description = "Protocol.";
+  # Port forward; `addr`/`net` are the address types of the family, `toDesc` describes `to`.
+  forward =
+    {
+      addr,
+      net,
+      toDesc,
+    }:
+    types.submodule {
+      options = {
+        proto = mkOption {
+          type = types.enum [
+            "tcp"
+            "udp"
+          ];
+          description = "Protocol.";
+        };
+        ports = mkOption {
+          type = types.listOf types.port;
+          description = "Ports on the WAN address.";
+        };
+        to = typed addr toDesc;
+        from = nullable (types.listOf (types.either addr net)) "Source addresses/networks allowed to use the forward; null = everyone.";
       };
-      ports = mkOption {
-        type = types.listOf types.port;
-        description = "Ports on the WAN address.";
-      };
-      to = typed ip4 "Internal destination address.";
-      from = nullable (types.listOf (types.either ip4 cidr4)) "Source addresses/networks allowed to use the forward; null = everyone.";
     };
+  forward4 = forward {
+    addr = ip4;
+    net = cidr4;
+    toDesc = "Internal destination address.";
   };
-  forward6 = types.submodule {
-    options = {
-      proto = mkOption {
-        type = types.enum [
-          "tcp"
-          "udp"
-        ];
-        description = "Protocol.";
-      };
-      ports = mkOption {
-        type = types.listOf types.port;
-        description = "Ports on the WAN address.";
-      };
-      to = typed ip6 "Internal destination address (inside lan.v6Supernet, i.e. behind NAT66).";
-      from = nullable (types.listOf (types.either ip6 cidr6)) "Source addresses/networks allowed to use the forward; null = everyone.";
-    };
+  forward6 = forward {
+    addr = ip6;
+    net = cidr6;
+    toDesc = "Internal destination address (inside lan.v6Supernet, i.e. behind NAT66).";
   };
 
   service = types.submodule {
@@ -101,9 +101,11 @@ in
         type = types.attrsOf service;
         default = { };
         description = ''
-          Services on the router (input chain), the only gate: the services accept every
-          client. Defaults: `dhcp`, `ntp` (lan), `dns` (lan, mesh, trusted), `dns-ui`, `ssh`
-          (lan, trusted), `metrics` (lan, trusted; with monitoring), `nut` (lan; with a UPS).
+          Services on the router (input chain). The input policy is drop, so only these (plus
+          the rules generated from the features) are reachable; a service accepts every client
+          of its `from` zones. Defaults: `dhcp`, `ntp` (lan), `dns` (lan, mesh, trusted),
+          `dns-ui`, `ssh` (lan, trusted); `metrics` (lan, trusted) comes from the monitoring
+          module when Prometheus exporters are enabled and `nut` (lan) from the UPS module.
           A site overrides single fields (`services.ssh.from = [ "lan" ];`), disables one
           (`enable = false`) or adds its own. Rules for NetBird, BGP, VXLAN and the DHCPv6
           client are generated from the features.
@@ -125,6 +127,10 @@ in
         '';
         burst = typedD types.ints.positive 20 "Burst (packets) of the drop log's rate limit.";
       };
+      icmpEchoRate = typedD (types.strMatching "[0-9]+/(second|minute|hour)") "10/second" ''
+        Rate limit of ICMP/ICMPv6 echo requests arriving on the WAN, per source address;
+        faster ones are dropped. Other ICMP types and all non-WAN interfaces are not limited.
+      '';
       extraForwardRules = mkOption {
         type = types.lines;
         default = "";
