@@ -683,6 +683,16 @@ lib.runTests {
     ];
   };
   # A hub lost for good restarts the NetBird client (timer + unit); switched off, neither exists.
+  # The two Kea servers share a runtime directory and must not start at the same moment.
+  testKeaStartOrder = {
+    expr = lib.mapAttrs (
+      _: s: lib.elem "kea-dhcp4-server.service" s.config.systemd.services.kea-dhcp6-server.after
+    ) { inherit spoke home; };
+    expected = {
+      spoke = true;
+      home = true;
+    };
+  };
   testEvpnRecovery = {
     expr =
       let

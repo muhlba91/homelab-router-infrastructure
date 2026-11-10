@@ -101,4 +101,9 @@ in
       ];
     };
   };
+
+  # Both servers use the runtime directory `kea` (the control sockets). Started at the same
+  # moment at boot, each unit's setup of that directory raced with the other server's check
+  # of its permissions and both failed once; DHCPv6 starts after DHCPv4 instead.
+  systemd.services.kea-dhcp6-server.after = [ "kea-dhcp4-server.service" ];
 }
