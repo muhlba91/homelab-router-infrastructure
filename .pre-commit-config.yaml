@@ -1,7 +1,7 @@
 ---
 repos:
-  - repo: https://github.com/talos-systems/conform
-    rev: v0.1.0-alpha.30
+  - repo: https://github.com/siderolabs/conform
+    rev: v0.1.0-alpha.33
     hooks:
       - id: conform
         stages:
@@ -12,7 +12,6 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: check-json
-        exclude: .eslintrc.json|node_modules/*
       - id: check-merge-conflict
       - id: check-symlinks
       - id: check-toml
@@ -23,20 +22,12 @@ repos:
             "--allow-missing-credentials"
         ]
       - id: detect-private-key
-        exclude: node_modules/*
-#      - id: no-commit-to-branch
-#        args: [
-#            "--branch",
-#            "main",
-#            "--branch",
-#            "next"
-#        ]
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.0
     hooks:
       - id: gitleaks
   # The Go module lives in infrastructure/ (the upstream hook runs at the repository root);
-  # the installed golangci-lint, like `make lint` and CI (latest), supports the module's Go version.
+  # golangci-lint is pinned in mise.toml; CI uses the same mise version.
   - repo: local
     hooks:
       - id: golangci-lint

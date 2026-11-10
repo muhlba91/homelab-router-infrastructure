@@ -16,9 +16,6 @@
         "pre-commit",
         "mise"
     ],
-    "nix": {
-        "enabled": true
-    },
     "lockFileMaintenance": {
         "enabled": true,
         "automerge": true,
