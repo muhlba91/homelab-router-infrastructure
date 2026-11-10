@@ -10,6 +10,15 @@ import (
 // varsTemplate is the template of the vars.nix file (Go text/template).
 const varsTemplate = "./assets/vars.nix.j2"
 
+// netbirdView is the part of the NetBird connection the template may use; the rest (the token) stays out of its
+// reach.
+type netbirdView struct {
+	// Address is the URL of the NetBird management server.
+	Address string
+	// HubIP is the NetBird IPv4 address of the hub (its EVPN VTEP).
+	HubIP string
+}
+
 // renderVars renders the vars.nix file of a site.
 // site: The site configuration.
 // sshKeys: The public SSH keys of the deploy user.
@@ -25,6 +34,6 @@ func renderVars(
 		"Router":  site,
 		"SSHKeys": sshKeys,
 		"HostKey": hostKey,
-		"Netbird": netbirdConfig,
+		"Netbird": netbirdView{Address: netbirdConfig.Address, HubIP: netbirdConfig.HubIP},
 	})
 }

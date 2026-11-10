@@ -2,7 +2,7 @@ package site
 
 // BGPConfig defines the BGP configuration for a site.
 type BGPConfig struct {
-	// Enabled indicates whether BGP runs on the site (default true; EVPN needs it).
+	// Enabled indicates whether BGP runs on the site; EVPN needs it.
 	Enabled *bool `yaml:"enabled,omitempty"`
 	// ASN is the Autonomous System Number for the site.
 	ASN int `yaml:"asn"`
@@ -30,32 +30,32 @@ type BGPPeerConfig struct {
 	NextHopSelf *bool `yaml:"nextHopSelf,omitempty"`
 	// Multihop is the eBGP multihop TTL for a peer that is not directly connected.
 	Multihop *int `yaml:"multihop,omitempty"`
-	// V4 indicates whether IPv4 unicast is activated on the BGP peer (default true).
+	// V4 indicates whether IPv4 unicast is activated on the BGP peer.
 	V4 *bool `yaml:"v4,omitempty"`
-	// V6 indicates whether IPv6 unicast is activated on the BGP peer (default true).
+	// V6 indicates whether IPv6 unicast is activated on the BGP peer.
 	V6 *bool `yaml:"v6,omitempty"`
 	// InPolicy is the inbound policy for routes received from the BGP peer ("strict", "allow-all", "deny-all").
 	InPolicy *string `yaml:"inPolicy,omitempty"`
 	// OutPolicy is the outbound policy for routes advertised to the BGP peer ("strict", "allow-all", "deny-all").
 	OutPolicy *string `yaml:"outPolicy,omitempty"`
 	// Transit indicates whether every route accepted from the BGP peer is passed on to the other sites through
-	// EVPN (default false; needs the "strict" InPolicy and EVPN; never for a peer that is itself a site).
+	// EVPN (needs the "strict" InPolicy and EVPN; never for a peer that is itself a site).
 	Transit *bool `yaml:"transit,omitempty"`
 }
 
 // EVPNConfig defines the EVPN configuration for a site.
 type EVPNConfig struct {
-	// Enabled indicates whether EVPN is enabled for the site (default false).
+	// Enabled indicates whether EVPN is enabled for the site; it needs NetBird.
 	Enabled *bool `yaml:"enabled,omitempty"`
-	// Egress is the Internet egress of exposed services through the hub (optional, disabled if unset).
+	// Egress is the Internet egress of exposed services through the hub.
 	Egress *EgressConfig `yaml:"egress,omitempty"`
 }
 
 // EgressConfig defines the Internet egress of the exposed services of a site: the provider drops sources of the
 // public prefixes, so their packets leave through the hub (default route of the EVPN VRF; needs the hub's egress).
 type EgressConfig struct {
-	// Enabled indicates whether the egress is enabled (default false).
+	// Enabled indicates whether the egress is enabled.
 	Enabled *bool `yaml:"enabled,omitempty"`
-	// Sources is the list of source prefixes, inside the additional routable networks (default: all of them).
+	// Sources is the list of source prefixes, inside the additional routable networks; unset: all of them.
 	Sources []string `yaml:"sources,omitempty"`
 }

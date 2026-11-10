@@ -2,9 +2,9 @@ package site
 
 // DHCPConfig defines the DHCP configuration for a site.
 type DHCPConfig struct {
-	// V4 is the IPv4 address pool for DHCP.
+	// V4 is the IPv4 address pool (required).
 	V4 *DHCPPool `yaml:"v4"`
-	// V6 is the IPv6 address pool for DHCP.
+	// V6 is the IPv6 address pool (required).
 	V6 *DHCPPool `yaml:"v6"`
 	// Reservations is a list of DHCP reservations for the site.
 	Reservations []*DHCPReservation `yaml:"reservations,omitempty"`

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -18,8 +17,7 @@ import (
 func ParseSSHKeysFromFiles(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		log.Err(err).Msgf("[ssh] error reading ssh key directory: %s", dir)
-		return nil, err
+		return nil, fmt.Errorf("reading ssh key directory %s: %w", dir, err)
 	}
 
 	var keys []string
@@ -31,8 +29,7 @@ func ParseSSHKeysFromFiles(dir string) ([]string, error) {
 		full := filepath.Join(dir, e.Name())
 		b, rErr := os.ReadFile(full)
 		if rErr != nil {
-			log.Err(rErr).Msgf("[ssh] error reading ssh key file: %s", full)
-			return nil, rErr
+			return nil, fmt.Errorf("reading %s: %w", full, rErr)
 		}
 
 		for i, line := range strings.Split(string(b), "\n") {
@@ -41,18 +38,14 @@ func ParseSSHKeysFromFiles(dir string) ([]string, error) {
 				continue
 			}
 			if _, _, _, _, pErr := ssh.ParseAuthorizedKey([]byte(line)); pErr != nil {
-				kErr := fmt.Errorf("%s:%d: invalid public key: %w", full, i+1, pErr)
-				log.Err(kErr).Msg("[ssh] error parsing ssh key file")
-				return nil, kErr
+				return nil, fmt.Errorf("%s:%d: invalid public key: %w", full, i+1, pErr)
 			}
 			keys = append(keys, line)
 		}
 	}
 
 	if len(keys) == 0 {
-		nErr := errors.New("no public keys found in " + dir + " (*.pub)")
-		log.Err(nErr).Msg("[ssh] error reading ssh keys")
-		return nil, nErr
+		return nil, errors.New("no public keys found in " + dir + " (*.pub)")
 	}
 
 	return keys, nil

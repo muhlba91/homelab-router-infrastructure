@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 
 	"github.com/muhlba91/homelab-router-infrastructure/pkg/model/config/site"
@@ -33,8 +32,7 @@ var siteName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 func ParseSitesFromFiles(dir string) ([]*site.Config, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		log.Err(err).Msgf("[site] error reading site configuration directory: %s", dir)
-		return nil, err
+		return nil, fmt.Errorf("reading site directory %s: %w", dir, err)
 	}
 
 	var sites []*site.Config
@@ -51,9 +49,7 @@ func ParseSitesFromFiles(dir string) ([]*site.Config, error) {
 			return nil, lErr
 		}
 		if other, ok := seen[r.Name]; ok {
-			dErr := fmt.Errorf("site %q is defined twice: %s and %s", r.Name, other, full)
-			log.Err(dErr).Msgf("[site] error validating site configuration file: %s", full)
-			return nil, dErr
+			return nil, fmt.Errorf("site %q is defined twice: %s and %s", r.Name, other, full)
 		}
 		seen[r.Name] = full
 		sites = append(sites, r)
@@ -73,8 +69,7 @@ func loadSiteFile(path string, name string) (*site.Config, error) {
 	}
 
 	if nErr := applyFileName(r, name); nErr != nil {
-		log.Err(nErr).Msgf("[site] error validating site configuration file: %s", path)
-		return nil, nErr
+		return nil, fmt.Errorf("%s: %w", path, nErr)
 	}
 
 	return r, nil
@@ -110,29 +105,33 @@ func applyFileName(r *site.Config, name string) error {
 func parseSiteFile(path string) (*site.Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		log.Err(err).Msgf("[site] error reading site configuration file: %s", path)
-		return nil, err
+		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 
 	var r site.Config
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
 	if yErr := dec.Decode(&r); yErr != nil {
-		log.Err(yErr).Msgf("[site] error parsing site configuration file: %s", path)
 		return nil, fmt.Errorf("%s: %w", path, yErr)
 	}
-	if !errors.Is(dec.Decode(new(any)), io.EOF) {
+	switch extra := dec.Decode(new(any)); {
+	case extra == nil:
 		return nil, fmt.Errorf("%s: more than one YAML document", path)
+	case !errors.Is(extra, io.EOF):
+		return nil, fmt.Errorf("%s: second YAML document: %w", path, extra)
 	}
 	if lErr := checkLists(&r); lErr != nil {
 		return nil, fmt.Errorf("%s: %w", path, lErr)
+	}
+	if vErr := r.Validate(); vErr != nil {
+		return nil, fmt.Errorf("%s: %w", path, vErr)
 	}
 
 	return &r, nil
 }
 
-// checkLists rejects empty lists: the template renders them like omitted ones (`from: []` would open a forward to
-// everyone).
+// checkLists rejects empty lists and empty entries: the template renders an empty list like an omitted one
+// (`from: []` would open a forward to everyone) and cannot render a nil entry.
 // r: The site configuration.
 func checkLists(r *site.Config) error {
 	if r.Firewall == nil {
@@ -140,6 +139,9 @@ func checkLists(r *site.Config) error {
 	}
 	if r.Firewall.Forwards != nil {
 		for _, f := range slices.Concat(r.Firewall.Forwards.V4, r.Firewall.Forwards.V6) {
+			if f == nil {
+				return errors.New("forward: an entry must not be empty")
+			}
 			if f.From != nil && len(f.From) == 0 {
 				return fmt.Errorf("forward to %s: from must not be empty (omit it for everyone)", f.To)
 			}
@@ -147,7 +149,10 @@ func checkLists(r *site.Config) error {
 	}
 	for _, name := range slices.Sorted(maps.Keys(r.Firewall.Services)) {
 		s := r.Firewall.Services[name]
-		if s != nil && ((s.Ports != nil && len(s.Ports) == 0) || (s.From != nil && len(s.From) == 0)) {
+		if s == nil {
+			return fmt.Errorf("service %s: must not be empty (omit it to keep the default)", name)
+		}
+		if (s.Ports != nil && len(s.Ports) == 0) || (s.From != nil && len(s.From) == 0) {
 			return fmt.Errorf(
 				"service %s: ports and from must not be empty (omit them for the defaults, close it with enabled: false)",
 				name,

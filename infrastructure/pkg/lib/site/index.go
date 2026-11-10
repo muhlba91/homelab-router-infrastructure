@@ -1,6 +1,7 @@
 package site
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	nbProvider "github.com/KitStream/netbird-pulumi-provider/sdk/go/netbird"
 	"github.com/muhlba91/pulumi-shared-library/pkg/lib/random"
 	"github.com/muhlba91/pulumi-shared-library/pkg/lib/tls"
+	randomModel "github.com/muhlba91/pulumi-shared-library/pkg/model/random"
 	tlsProv "github.com/pulumi/pulumi-tls/sdk/v5/go/tls"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -42,9 +44,9 @@ type Data struct {
 }
 
 // ConfigureSite creates the resources of a site and renders its vars.nix. An enabled site gets a deploy key, an SSH
-// host key, an AdGuard Home password, a NetBird setup key if it runs NetBird and a NUT password if it has a UPS. A disabled site gets none of
-// them (disabling a site deletes them); its vars.nix holds only the static SSH keys, so it is still rendered and
-// checked, but not deployable.
+// host key, an AdGuard Home password, a NetBird setup key if it runs NetBird and a NUT password if it has a UPS.
+// A disabled site gets none of them (disabling a site deletes them); its vars.nix holds only the static SSH keys,
+// so it is still rendered and checked, but not deployable.
 // ctx: The Pulumi context.
 // site: The site configuration.
 // staticSSHKeys: The static public SSH keys of the deploy user; the site's generated key is added to them.
@@ -58,24 +60,48 @@ func ConfigureSite(
 	netbirdProvider *nbProvider.Provider,
 ) (*Data, error) {
 	if !site.IsEnabled() {
-		vars, vErr := renderVars(site, staticSSHKeys, "", netbirdConfig)
-		if vErr != nil {
-			return nil, vErr
-		}
-
-		return &Data{Vars: contextOutput(ctx, vars)}, nil
+		return configureDisabled(ctx, site, staticSSHKeys, netbirdConfig)
 	}
 
-	name := config.ResourceName(site.Name)
+	return configureEnabled(ctx, site, staticSSHKeys, netbirdConfig, netbirdProvider)
+}
 
-	deployKey, sErr := tls.CreateSSHKey(ctx, name, 0)
-	if sErr != nil {
-		return nil, sErr
+// configureDisabled renders the vars.nix of a disabled site: no resources.
+func configureDisabled(
+	ctx *pulumi.Context,
+	site *site.Config,
+	staticSSHKeys []string,
+	netbirdConfig *netbirdModel.Config,
+) (*Data, error) {
+	vars, err := renderVars(site, staticSSHKeys, "", netbirdConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	hostKey, hErr := tls.CreateSSHKey(ctx, config.ResourceName(fmt.Sprintf("%s-host", site.Name)), 0)
-	if hErr != nil {
-		return nil, hErr
+	out, oErr := contextOutput(ctx, vars)
+	if oErr != nil {
+		return nil, oErr
+	}
+
+	return &Data{Vars: out}, nil
+}
+
+// configureEnabled creates the keys and secrets of an enabled site and renders its vars.nix with the public keys.
+func configureEnabled(
+	ctx *pulumi.Context,
+	site *site.Config,
+	staticSSHKeys []string,
+	netbirdConfig *netbirdModel.Config,
+	netbirdProvider *nbProvider.Provider,
+) (*Data, error) {
+	deployKey, err := tls.CreateSSHKey(ctx, config.ResourceName(site.Name), 0)
+	if err != nil {
+		return nil, err
+	}
+
+	hostKey, err := tls.CreateSSHKey(ctx, config.ResourceName(fmt.Sprintf("%s-host", site.Name)), 0)
+	if err != nil {
+		return nil, err
 	}
 
 	var setupKey *pulumi.StringOutput
@@ -89,44 +115,22 @@ func ConfigureSite(
 
 	var nutPassword *pulumi.StringOutput
 	if site.UsesUPS() {
-		// The password helper adds no type prefix; the site name is unique within the stack.
-		password, pErr := random.CreatePassword(
-			ctx,
-			fmt.Sprintf("password-nut-%s-%s", site.Name, config.Environment),
-			&random.PasswordOptions{
-				Length:  passwordLength,
-				Special: false,
-			},
-		)
-		if pErr != nil {
-			return nil, pErr
+		nut, nErr := createPassword(ctx, "nut", site.Name)
+		if nErr != nil {
+			return nil, nErr
 		}
-		nutPassword = &password.Password
+		nutPassword = &nut.Password
 	}
 
-	adguard, aErr := random.CreatePassword(
-		ctx,
-		fmt.Sprintf("password-adguard-%s-%s", site.Name, config.Environment),
-		&random.PasswordOptions{
-			Length:  passwordLength,
-			Special: false,
-		},
-	)
-	if aErr != nil {
-		return nil, aErr
+	adguard, err := createPassword(ctx, "adguard", site.Name)
+	if err != nil {
+		return nil, err
 	}
 
-	// An error returned from the apply fails the update instead of writing an empty file.
-	vars, _ := pulumi.All(deployKey.PublicKeyOpenssh, hostKey.PublicKeyOpenssh).ApplyT(func(keys []any) (string, error) {
-		deployPublicKey, _ := keys[0].(string)
-		hostPublicKey, _ := keys[1].(string)
-		return renderVars(
-			site,
-			slices.Concat(staticSSHKeys, []string{strings.TrimSpace(deployPublicKey)}),
-			strings.TrimSpace(hostPublicKey),
-			netbirdConfig,
-		)
-	}).(pulumi.StringOutput)
+	vars, err := applyVars(site, staticSSHKeys, netbirdConfig, deployKey, hostKey)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Data{
 		DeployKey:           deployKey,
@@ -137,6 +141,51 @@ func ConfigureSite(
 		AdguardPasswordHash: &adguard.Resource.BcryptHash,
 		Vars:                vars,
 	}, nil
+}
+
+// createPassword creates the generated password of a service of a site. The password helper adds no type prefix;
+// the site name is unique within the stack.
+// ctx: The Pulumi context.
+// service: The service the password is for (part of the resource name).
+// siteName: The site name.
+func createPassword(ctx *pulumi.Context, service, siteName string) (*randomModel.PasswordData, error) {
+	return random.CreatePassword(
+		ctx,
+		fmt.Sprintf("password-%s-%s-%s", service, siteName, config.Environment),
+		&random.PasswordOptions{
+			Length:  passwordLength,
+			Special: false,
+		},
+	)
+}
+
+// applyVars renders the vars.nix of an enabled site once its public keys are known. An error returned from the
+// apply fails the update instead of writing an empty file.
+func applyVars(
+	site *site.Config,
+	staticSSHKeys []string,
+	netbirdConfig *netbirdModel.Config,
+	deployKey, hostKey *tlsProv.PrivateKey,
+) (pulumi.StringOutput, error) {
+	vars, ok := pulumi.All(deployKey.PublicKeyOpenssh, hostKey.PublicKeyOpenssh).ApplyT(func(keys []any) (string, error) {
+		deployPublicKey, dOk := keys[0].(string)
+		hostPublicKey, hOk := keys[1].(string)
+		if !dOk || !hOk {
+			return "", errors.New("the public SSH keys of the site are not strings")
+		}
+
+		return renderVars(
+			site,
+			slices.Concat(staticSSHKeys, []string{strings.TrimSpace(deployPublicKey)}),
+			strings.TrimSpace(hostPublicKey),
+			netbirdConfig,
+		)
+	}).(pulumi.StringOutput)
+	if !ok {
+		return pulumi.StringOutput{}, errors.New("the vars.nix of the site is not a string output")
+	}
+
+	return vars, nil
 }
 
 // VarsDir returns the directory of a site's vars.nix below the output directory and the bucket path: sites/<site>.
@@ -158,14 +207,20 @@ func KeysDir(name string) string {
 // awaited when the program ends, so the applies writing it to a file could be cut off.
 // ctx: The Pulumi context.
 // value: The value of the output.
-func contextOutput(ctx *pulumi.Context, value string) pulumi.StringOutput {
+func contextOutput(ctx *pulumi.Context, value string) (pulumi.StringOutput, error) {
 	out, resolve, _ := ctx.NewOutput()
 	resolve(value)
 
-	str, _ := out.ApplyT(func(v any) string {
-		s, _ := v.(string)
-		return s
+	str, ok := out.ApplyT(func(v any) (string, error) {
+		s, sOk := v.(string)
+		if !sOk {
+			return "", errors.New("the output of the context is not a string")
+		}
+		return s, nil
 	}).(pulumi.StringOutput)
+	if !ok {
+		return pulumi.StringOutput{}, errors.New("the context output is not a string output")
+	}
 
-	return str
+	return str, nil
 }

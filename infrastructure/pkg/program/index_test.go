@@ -23,9 +23,38 @@ const project = "homelab-router-infrastructure"
 // enabledLine matches a site file's switch.
 var enabledLine = regexp.MustCompile(`(?m)^enabled: false$`)
 
-// render runs the program under mocks in dir, with the site files of assets/sites and the site template (all of them
-// enabled if enable is set) and checks the written files.
-func render(t *testing.T, dir string, enable, enrollKey bool) {
+// renderOptions configure a render.
+type renderOptions struct {
+	// enable enables every site file.
+	enable bool
+	// enrollKey sets the CrowdSec console enroll key in the stack configuration.
+	enrollKey bool
+	// sites are additional site files: file name (without .yml) -> content.
+	sites map[string]string
+}
+
+// requiredFields are the fields every site file needs besides its name.
+const requiredFields = `hardware: {profile: qemu, disk: /dev/sda}
+network:
+  domain: a.example
+  wan:
+    mac: "00:00:00:00:00:01"
+    interface: wan0
+    v4: {method: dhcp}
+  lan:
+    mac: "00:00:00:00:00:02"
+    interface: lan0
+    v4: {address: 10.0.0.1, netmask: 24, network: 10.0.0.0}
+    v6: {address: "fd00::1", netmask: 64, network: "fd00::", supernet: "fd00::/48"}
+  trustedNetworks: {}
+dhcp:
+  v4: {start: 10.0.0.10, end: 10.0.0.20}
+  v6: {start: "fd00::10", end: "fd00::20"}
+`
+
+// render runs the program under mocks in dir, with the site files of assets/sites, the site template and the
+// additional sites of the options, and checks the written files.
+func render(t *testing.T, dir string, opts renderOptions) {
 	t.Helper()
 
 	assets, err := filepath.Abs("../../assets")
@@ -34,14 +63,17 @@ func render(t *testing.T, dir string, enable, enrollKey bool) {
 	require.NoError(t, os.CopyFS(filepath.Join(dir, "assets"), os.DirFS(assets)))
 
 	// The site template sets every field: rendered as a site too, so the whole template is checked.
-	template, err := os.ReadFile(filepath.Join(dir, "assets", "templates", "site.yml"))
+	siteTemplate, err := os.ReadFile(filepath.Join(dir, "assets", "templates", "site.yml"))
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets", "sites", "site.yml"), template, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets", "sites", "site.yml"), siteTemplate, 0o600))
+	for name, content := range opts.sites {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "assets", "sites", name+".yml"), []byte(content), 0o600))
+	}
 
 	files, err := filepath.Glob(filepath.Join(dir, "assets", "sites", "*.yml"))
 	require.NoError(t, err)
 	require.NotEmpty(t, files)
-	if enable {
+	if opts.enable {
 		for _, file := range files {
 			content, rErr := os.ReadFile(file)
 			require.NoError(t, rErr)
@@ -51,7 +83,7 @@ func render(t *testing.T, dir string, enable, enrollKey bool) {
 
 	t.Chdir(dir)
 	stackConfig := `{"` + project + `:bucketId":"mock-bucket"`
-	if enrollKey {
+	if opts.enrollKey {
 		stackConfig += `,"` + project + `:crowdsec":"{\"enrollKey\":\"mock-key\"}"`
 	}
 	t.Setenv("PULUMI_CONFIG", stackConfig+"}")
@@ -61,12 +93,12 @@ func render(t *testing.T, dir string, enable, enrollKey bool) {
 	require.NoError(t, err)
 
 	for _, site := range sites {
-		if enable {
+		if opts.enable {
 			assert.True(t, site.IsEnabled(), site.Name)
 		}
 		assert.FileExists(t, filepath.Join("outputs", "sites", site.Name, "vars.nix"))
 		if site.IsEnabled() {
-			assertKeys(t, site, enrollKey)
+			assertKeys(t, site, opts.enrollKey)
 		} else {
 			assert.NoDirExists(t, filepath.Join("outputs", "keys", site.Name))
 		}
@@ -130,7 +162,7 @@ func TestRunAsIs(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, path, "file"), []byte("stale"), 0o600))
 	}
 
-	render(t, dir, false, true)
+	render(t, dir, renderOptions{enrollKey: true})
 
 	for _, path := range stale {
 		assert.NoDirExists(t, path)
@@ -146,11 +178,39 @@ func TestRunEnabled(t *testing.T) {
 	}
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 
-	render(t, dir, true, true)
+	render(t, dir, renderOptions{enable: true, enrollKey: true})
 }
 
 // TestRunWithoutEnrollKey renders every site file enabled without the CrowdSec enroll key: the console enrollment is
 // dropped (vars.nix and secrets).
 func TestRunWithoutEnrollKey(t *testing.T) {
-	render(t, t.TempDir(), true, false)
+	render(t, t.TempDir(), renderOptions{enable: true})
+}
+
+// TestRunVars checks the rendered vars.nix: no hostname (the Nix option defaults to the name), no NetBird token, and
+// no IPv6 on the WAN of a site without one.
+func TestRunVars(t *testing.T) {
+	dir := t.TempDir()
+	render(t, dir, renderOptions{
+		enable: true,
+		sites:  map[string]string{"plain": "name: plain\nenabled: true\n" + requiredFields},
+	})
+
+	vars, err := os.ReadFile(filepath.Join("outputs", "sites", "plain", "vars.nix"))
+	require.NoError(t, err)
+	assert.Contains(t, string(vars), "v6 = {\n        method = \"none\";\n      };")
+	assert.Contains(t, string(vars), "v4 = {\n        method = \"dhcp\";\n      };")
+	assert.Contains(t, string(vars), "mgmt = {\n      address = \"10.0.0.1\";", "defaults to the LAN address")
+	assert.Contains(t, string(vars), "nat66.enable = true;")
+	assert.NotContains(t, string(vars), "bgp")
+
+	sites, err := filepath.Glob(filepath.Join("outputs", "sites", "*", "vars.nix"))
+	require.NoError(t, err)
+	require.Len(t, sites, 6)
+	for _, file := range sites {
+		content, rErr := os.ReadFile(file)
+		require.NoError(t, rErr)
+		assert.NotContains(t, string(content), "hostname = \""+filepath.Base(filepath.Dir(file)), file)
+		assert.NotContains(t, string(content), "mock-pat", file)
+	}
 }

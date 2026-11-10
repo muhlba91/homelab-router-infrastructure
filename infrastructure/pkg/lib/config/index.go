@@ -22,14 +22,14 @@ const (
 	sitesDir = "./assets/sites"
 	// sshKeysDir is the directory of the static public SSH keys of the deploy user.
 	sshKeysDir = "./assets/ssh"
+	// GlobalName is the prefix of the resource names and the bucket path.
+	GlobalName = "router-infrastructure"
 )
 
 //nolint:gochecknoglobals // global configuration is acceptable here
 var (
 	// Environment is the stack name (e.g. prod); it selects the core stack of the same name.
 	Environment string
-	// GlobalName is the prefix of the resource names and the bucket path.
-	GlobalName = "router-infrastructure"
 	// BucketPath is the path within the buckets for this project.
 	BucketPath string
 	// BucketID is the ID of the main storage bucket.
@@ -94,8 +94,7 @@ func CommonLabels() map[string]string {
 
 // loadNetbirdConfig reads the output "netbird" of the core infrastructure stack of the same environment.
 // The values are awaited here, so every resource that depends on them is created at the top level (and is
-// therefore part of a preview). Every value is required: a setup key without the backbone group enrolls a
-// router that cannot reach the hub.
+// therefore part of a preview).
 // ctx: The Pulumi context.
 func loadNetbirdConfig(ctx *pulumi.Context) (*netbirdModel.Config, error) {
 	coreStack, sErr := pulumi.NewStackReference(
@@ -116,6 +115,14 @@ func loadNetbirdConfig(ctx *pulumi.Context) (*netbirdModel.Config, error) {
 	if raw == nil {
 		raw = details.SecretValue
 	}
+
+	return parseNetbirdConfig(raw)
+}
+
+// parseNetbirdConfig converts the value of the output "netbird" of the core stack. Every value is required: a setup
+// key without the backbone group enrolls a router that cannot reach the hub.
+// raw: The value of the output.
+func parseNetbirdConfig(raw any) (*netbirdModel.Config, error) {
 	nbData, ok := raw.(map[string]any)
 	if !ok {
 		return nil, errors.New("output netbird of the core stack is missing")

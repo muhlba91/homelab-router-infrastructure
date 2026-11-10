@@ -33,7 +33,6 @@ network:
       address: "2a01:4f8:121:14e2:2::1337"
       netmask: 127
       gateway: "2a01:4f8:121:14e2:2::1336"
-      # a public network cannot be announced
 
   # public IPv6 (a /80 of the Proxmox host's /64): no NAT66, not announced
   lan:
@@ -131,29 +130,4 @@ bgp:
       outPolicy: deny-all
       transit: true
 
-# when the last VM with a public IPv6 address is gone: ULA + NAT66 like OVH.
-# network:
-#   lan:
-#     v6:
-#       address: "fd03:103d:e091::1"
-#       netmask: 48
-#       network: "fd03:103d:e091::"
-#       public: false
-#       supernet: "fd03:103d:e091::/48"
-# dhcp:
-#   v6:
-#     start: "fd03:103d:e091:1::1"
-#     end: "fd03:103d:e091:1::ffff"
-# firewall:
-#   forwards:
-#     v6:
-#       - proto: tcp
-#         ports: [80, 443]
-#         to: "fd03:103d:e091::..."   # the cluster ingress
-#       - proto: tcp
-#         ports: [8000, 8443]
-#         to: "fd03:103d:e091::..."   # Traefik
-#   (and drop extraForwardRules)
-# bgp:
-#   peers:
-#     - address: "fd03:103d:e091::..."   # the cluster's new address
+# when the last VM with a public IPv6 address is gone: ULA + NAT66 (docs/ula-nat66.md).

@@ -40,7 +40,7 @@ type ForwardEntryConfig struct {
 	Ports []int `yaml:"ports"`
 	// To is the destination address to which the ports will be forwarded.
 	To string `yaml:"to"`
-	// From is the list of source addresses or networks allowed to use the forward (default: everyone).
+	// From is the list of source addresses or networks allowed to use the forward; unset: everyone.
 	From []string `yaml:"from,omitempty"`
 }
 
