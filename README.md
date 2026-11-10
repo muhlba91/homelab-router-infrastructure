@@ -66,16 +66,23 @@ pulumi destroy
 
 ## Environment Variables
 
-To successfully run, and configure the Pulumi plugins, you need to set a list of environment variables. Alternatively, refer to the used Pulumi provider's configuration documentation.
+The program needs Google Cloud credentials (secrets encryption: Cloud KMS), the Scaleway variables (`SCW_ACCESS_KEY`,
+`SCW_SECRET_KEY`, `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID`, `SCW_DEFAULT_REGION`, `SCW_DEFAULT_ZONE`) and a Pulumi token.
+They come from Vault through [fnox](https://fnox.jdx.dev) (`fnox.toml`, installed by mise), in CI and locally:
 
-- `GOOGLE_APPLICATION_CREDENTIALS`: reference to a file containing the Google Cloud (GCP) service account credentials (secrets encryption)
-- `SCW_ACCESS_KEY`: the Scaleway access key
-- `SCW_SECRET_KEY`: the Scaleway secret key
-- `SCW_ORGANIZATION_ID`: the Scaleway organization ID
-- `SCW_PROJECT_ID`: the Scaleway project ID
-- `SCW_DEFAULT_REGION`: the Scaleway default region
-- `SCW_DEFAULT_ZONE`: the Scaleway default zone
-- `PULUMI_ACCESS_TOKEN`: the Pulumi access token
+- **CI:** `hashicorp/vault-action` only logs in (GitHub OIDC, `exportToken`); fnox reads the values listed in
+  `fnox.toml`. The host deploy job adds the Tailscale OAuth client (`FNOX_PROFILE=host-deploy`); the S3 copies map the
+  Scaleway keys to `AWS_*` in their step. Pulumi logs in through OIDC (`pulumi/auth-actions`).
+- **Locally** (`FNOX_PROFILE=dev`, set on the Mac by the dotfiles and on the dev VMs by NixOS): the Pulumi token and
+  Google Cloud credentials impersonating the CI service account, built from the machine's own key
+  (`GCP_SOURCE_CREDENTIALS` in the global fnox config).
+
+```bash
+cd infrastructure
+fnox exec -- pulumi preview --stack prod
+```
+
+`fnox.local.toml` (git-ignored) can override values for experiments.
 
 ---
 
