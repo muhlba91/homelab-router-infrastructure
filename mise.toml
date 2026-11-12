@@ -9,4 +9,4 @@ fnox = { version = "v1.48.0", workflow = "release.yml" }
 go = "1.27.4"
 golangci-lint = "2.15.0"
 pulumi = "3.274.1"
-vault = "2.2.1"
+vault = "2.2.2"
