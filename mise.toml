@@ -8,5 +8,5 @@ lockfile_platforms = ["macos-arm64", "linux-x64", "linux-arm64"]
 fnox = { version = "v1.48.0", workflow = "release.yml" }
 go = "1.27.4"
 golangci-lint = "2.15.0"
-pulumi = "3.274.1"
+pulumi = "3.276.0"
 vault = "2.2.2"
