@@ -190,6 +190,7 @@ jobs:
           command: up
           work-dir: infrastructure
           stack-name: prod
+          refresh: true
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
