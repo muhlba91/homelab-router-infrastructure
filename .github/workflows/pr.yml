@@ -106,7 +106,7 @@ jobs:
           RENDER_DIR: ${{ github.workspace }}/render
 
       - run: |
-          go install github.com/mattn/goveralls@latest
+          go install github.com/mattn/goveralls@v0.0.12
           goveralls -coverprofile=covprofile -service=github
         working-directory: infrastructure
         env:
