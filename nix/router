@@ -23,7 +23,7 @@ start=$PWD
 cd "$(dirname "$0")"
 # A relative OUTPUTS is relative to where the command was started, not to nix/.
 case "${OUTPUTS:-/}" in /*) ;; *) OUTPUTS=$start/$OUTPUTS ;; esac
-usage() { sed -n '2,20p' "$0"; exit 1; }
+usage() { awk 'NR > 1 && /^#/ { print; next } NR > 1 { exit }' "$0"; exit 1; }
 die() { echo "router: $*" >&2; exit 1; }
 SECRETS_DIR=/var/lib/secrets # must match modules/secrets.nix
 
