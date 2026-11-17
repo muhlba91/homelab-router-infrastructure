@@ -13,6 +13,7 @@ import (
 	randomModel "github.com/muhlba91/pulumi-shared-library/pkg/model/random"
 	tlsProv "github.com/pulumi/pulumi-tls/sdk/v5/go/tls"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/rs/zerolog/log"
 
 	"github.com/muhlba91/homelab-router-infrastructure/pkg/lib/config"
 	"github.com/muhlba91/homelab-router-infrastructure/pkg/lib/netbird"
@@ -60,9 +61,11 @@ func ConfigureSite(
 	netbirdProvider *nbProvider.Provider,
 ) (*Data, error) {
 	if !site.IsEnabled() {
+		log.Info().Str("site", site.Name).Msg("[site] disabled: rendering vars.nix only")
 		return configureDisabled(ctx, site, staticSSHKeys, netbirdConfig)
 	}
 
+	log.Info().Str("site", site.Name).Msg("[site] enabled: creating keys and secrets, rendering vars.nix")
 	return configureEnabled(ctx, site, staticSSHKeys, netbirdConfig, netbirdProvider)
 }
 
