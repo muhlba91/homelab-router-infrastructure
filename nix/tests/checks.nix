@@ -1,7 +1,8 @@
 # Flake checks (`nix flake check`, ./router check), offline and without capabilities, with
 # the tools of the checking system (the configurations are only evaluated, never built):
 #   lint          nixfmt (same as `nix fmt`), deadnix (unused code), statix (statix.toml),
-#                 shellcheck (router, nx, secrets-sync.sh)
+#                 shellcheck (router, nx, secrets-sync.sh, ssh-setup.sh), SECRETS_DIR of ./router
+#                 equal to the one of modules/secrets.nix
 #   deploy-schema the deploy-rs nodes against deploy-rs' schema (its own check would build
 #                 every system: the profile paths are store paths of the routers)
 #   site-<name>   the site evaluates; its nftables ruleset passes `nft --check` inside a
@@ -118,8 +119,12 @@ in
         echo "ok   deadnix"
         statix check .
         echo "ok   statix"
-        shellcheck router nx secrets-sync.sh
+        shellcheck router nx secrets-sync.sh ssh-setup.sh
         echo "ok   shellcheck"
+        want=$(sed -n 's/^SECRETS_DIR=\([^ ]*\).*/\1/p' router)
+        [ -n "$want" ] && [ "$want" = "$(sed -n 's/^ *dir = "\([^"]*\)";.*/\1/p' modules/secrets.nix)" ] \
+          || { echo "SECRETS_DIR differs between router and modules/secrets.nix"; exit 1; }
+        echo "ok   secrets dir"
         touch $out
       '';
 }

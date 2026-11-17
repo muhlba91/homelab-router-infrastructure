@@ -187,6 +187,7 @@
               ./router
               ./nx
               ./secrets-sync.sh
+              ./ssh-setup.sh
             ];
           };
         }
