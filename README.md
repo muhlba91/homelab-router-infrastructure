@@ -4,7 +4,8 @@
 [![License](https://img.shields.io/github/license/muhlba91/homelab-router-infrastructure?style=for-the-badge)](LICENSE.md)
 [![](https://api.scorecard.dev/projects/github.com/muhlba91/homelab-router-infrastructure/badge?style=for-the-badge)](https://scorecard.dev/viewer/?uri=github.com/muhlba91/homelab-router-infrastructure)
 
-This repository contains the automation for the [NixOS](https://nixos.org) homelab routers (sites) connected via an optional [NetBird](https://netbird.io) underlay using [Pulumi](http://pulumi.com).
+This repository contains the automation for the [NixOS](https://nixos.org) homelab routers (sites) connected via an
+optional [NetBird](https://netbird.io) underlay using [Pulumi](https://www.pulumi.com).
 
 For each enabled site, it creates the deploy SSH key, the router's SSH host key, the AdGuard Home password, the NetBird
 setup key if the site uses NetBird and the NUT password if it has a UPS, and renders the site's `vars.nix` which the NixOS router configuration
@@ -16,26 +17,25 @@ consumes.
 
 - [infrastructure/](infrastructure/): the Pulumi program (Go) that creates the per-site resources and renders the site data
 - [nix/](nix/): the NixOS router configuration (a flake): `modules/` (one module set for every site; the vars schema in
-  `modules/options/`), `hardware/` (hardware profiles), `tests/` (checks, eval tests, fixtures), `router`, `nx` and
-  its image (`Containerfile`)
-- [docs/](docs/): [Proxmox](docs/proxmox.md) (host, router VM, first install), [physical router](docs/physical.md)
-  (bench install and swap), [router validation](docs/validation.md) and the move from a public LAN IPv6 prefix to
-  [ULA + NAT66](docs/ula-nat66.md)
+  `modules/options/`), `hardware/`, `tests/` (checks, eval tests, fixtures), and the `router` and `nx` scripts
+- [docs/](docs/): [troubleshooting](docs/troubleshooting.md), [Proxmox](docs/proxmox.md) (host, router VM, first
+  install), [physical router](docs/physical.md) (bench install and swap), [router validation](docs/validation.md) and
+  the move from a public LAN IPv6 prefix to [ULA + NAT66](docs/ula-nat66.md)
 
 ---
 
 ## Requirements
 
-- [mise](https://mise.jdx.dev) for Go, golangci-lint, Pulumi, fnox and Vault (see [Development](#development))
+- [mise](https://mise.jdx.dev) for Go, golangci-lint, Pulumi, fnox and Vault
 - [podman](https://podman.io) for the NixOS routers in [nix/](nix/) (or a local [Nix](https://nixos.org/download/))
 
-## Creating the Infrastructure
+## Deploying the Infrastructure
 
-To create the services, a [Pulumi Stack](https://www.pulumi.com/docs/concepts/stack/) with the correct configuration needs to exist.
+A [Pulumi Stack](https://www.pulumi.com/docs/concepts/stack/) with the [configuration](#configuration) below must exist.
+It reads the NetBird connection from the output `netbird` of the `muehlbachler-core-infrastructure` stack with the same
+name, which must exist (also if no site uses NetBird).
 
-The stack reads the NetBird connection from the output `netbird` of the `muehlbachler-core-infrastructure` stack with the same name, which must exist (also if no site uses NetBird).
-
-The stack can be deployed via:
+Deploy it with:
 
 ```bash
 cd infrastructure
@@ -56,34 +56,23 @@ The generated files are written to `infrastructure/outputs/` and uploaded to the
 - `keys/<site>/secrets/crowdsec-enroll-key`: the CrowdSec console enroll key (enabled sites with
   `security.crowdsec.console.enabled` only)
 
-## Destroying the Infrastructure
-
-The entire infrastructure can be destroyed via:
-
-```bash
-cd infrastructure
-pulumi destroy
-```
+`pulumi destroy` (in `infrastructure/`) removes everything again.
 
 ## Environment Variables
 
-The program needs Google Cloud credentials (secrets encryption: Cloud KMS), the Scaleway variables (`SCW_ACCESS_KEY`,
-`SCW_SECRET_KEY`, `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID`, `SCW_DEFAULT_REGION`, `SCW_DEFAULT_ZONE`) and a Pulumi token.
-They come from Vault through [fnox](https://fnox.jdx.dev) (`fnox.toml`, installed by mise), in CI and locally:
+The credentials come from Vault through [fnox](https://fnox.jdx.dev) (installed by mise; CI and local profiles in
+[fnox.toml](fnox.toml); locally `FNOX_PROFILE=dev`):
 
-- **CI:** `hashicorp/vault-action` only logs in (GitHub OIDC, `exportToken`); fnox reads the values listed in
-  `fnox.toml`. The host deploy job adds the Tailscale OAuth client (`FNOX_PROFILE=host-deploy`); the S3 copies map the
-  Scaleway keys to `AWS_*` in their step. Pulumi logs in through OIDC (`pulumi/auth-actions`).
-- **Locally** (`FNOX_PROFILE=dev`, set on the Mac by the dotfiles and on the dev VMs by NixOS): the Pulumi token and
-  Google Cloud credentials impersonating the CI service account, built from the machine's own key
-  (`GCP_SOURCE_CREDENTIALS` in the global fnox config).
+- Google Cloud credentials (secrets encryption: Cloud KMS) and a Pulumi token
+- `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID`, `SCW_DEFAULT_REGION`, `SCW_DEFAULT_ZONE`:
+  Scaleway
 
 ```bash
 cd infrastructure
 fnox exec -- pulumi preview --stack prod
 ```
 
-`fnox.local.toml` (git-ignored) can override values for experiments.
+`fnox.local.toml` (git-ignored) overrides values for experiments.
 
 ---
 
@@ -91,9 +80,8 @@ fnox exec -- pulumi preview --stack prod
 
 The following section describes the configuration which must be set in the Pulumi Stack.
 
-***Attention:*** do use
-[Secrets Encryption](https://www.pulumi.com/docs/concepts/secrets/#:~:text=Pulumi%20never%20sends%20authentication%20secrets,“secrets”%20for%20extra%20protection.)
-provided by Pulumi for secret values!
+> [!IMPORTANT]
+> Use [Secrets Encryption](https://www.pulumi.com/docs/concepts/secrets/) provided by Pulumi for secret values!
 
 ### Bucket
 
@@ -120,13 +108,14 @@ NetBird connection configuration. The values will be retrieved from the output `
 infrastructure stack: `address`, `pat`, `client.ipv4` (the hub's NetBird IP) and `backboneGroup` (the group every setup
 key assigns).
 
-Attention: the output and all its values are required, even if no site uses NetBird.
+> [!IMPORTANT]
+> The output and all its values are required, even if no site uses NetBird.
 
 ### Site YAML
 
 Sites are defined in YAML format. For each site to create a YAML file must be created in
 [infrastructure/assets/sites/](infrastructure/assets/sites/), named after the site (`<name>.yml`, also its hostname),
-optionally prefixed with its deploy order (`<order>-<name>.yml`, e.g. `000-test-router.yml`): the routers are
+optionally prefixed with its deploy order (`<order>-<name>.yml`, e.g. `000-lab-router-001.yml`): the routers are
 deployed in ascending order, sites without one last. The hundreds are categories: `0xx` test systems, `1xx` OVH, `2xx`
 Hetzner, `9xx` physical sites (deployed last).
 
@@ -138,8 +127,9 @@ its router is installed, until the cutover).
 
 The format is described in the [template](infrastructure/assets/templates/site.yml).
 
-Attention: values are rendered into Nix strings without escaping. A backslash must be doubled (e.g. the DNS filter rule
-`/ads\\d+\\.example/`), and values must not contain `"` or `${` (nor `''` in the raw firewall rules).
+> [!WARNING]
+> Values are rendered into Nix strings without escaping. A backslash must be doubled (e.g. the DNS filter rule
+> `/ads\\d+\\.example/`), and values must not contain `"` or `${` (nor `''` in the raw firewall rules).
 
 ### SSH Keys
 
@@ -162,18 +152,9 @@ The site data is read from `OUTPUTS` (default `../infrastructure/outputs`): `sit
 connect to a router. Without site data, the fixtures in [nix/tests/sites/](nix/tests/sites/) (documentation addresses
 only) are used.
 
-```bash
-cd nix
-./router sites                   # the sites (in deploy order): deployable, deployed by CI (automated)
-./router check                   # all checks (see Testing)
-./router fmt                     # format all .nix files
-./router dump <site>             # the evaluated configuration as JSON (diff before/after a change)
-./router push-secrets <site>     # deliver the site's secrets to the router
-./router deploy <site>           # push the secrets, then deploy-rs (with magic rollback); skipped if current
-./router health <site>           # failed units, BGP sessions, and whether a reboot is pending
-./router install <site> <ip>     # first install of a new box with nixos-anywhere (wipes the disk)
-./router ssh <site> [command]    # SSH as the deploy user
-```
+`./router` without arguments lists the commands: `sites`, `check`, `fmt`, `dump`, `push-secrets`, `deploy` (with
+magic rollback; skipped if current), `health`, `install` (nixos-anywhere; wipes the disk) and `ssh`, all run from
+`nix/`.
 
 Secrets are never part of the configuration: they are files pushed to `/var/lib/secrets` on the router, where the
 configuration only declares their names, owners and modes.
@@ -184,9 +165,8 @@ configuration only declares their names, owners and modes.
 
 - `make test` (in `infrastructure/`): the Go tests, including a render of every site file and of the site template
   (as the site `site`) under Pulumi mocks; `RENDER_DIR=<dir>` keeps the rendered files.
-- `./router check` (in `nix/`): the flake checks: formatting and linting of the Nix code and shellcheck of the scripts,
-  the deploy-rs schema, eval tests on the fixtures (derived values, and invalid vars that must fail), and per site:
-  the system evaluates, its nftables ruleset, radvd, Kea and FRR configurations pass the tools' own checks.
+- `./router check` (in `nix/`): the flake checks, see [checks.nix](nix/tests/checks.nix): lint, eval tests on the
+  fixtures, and per site the tools' own checks of its nftables, radvd, Kea and FRR configuration.
 - Both together check the whole chain from the site files to the router configuration:
 
 ```bash
@@ -202,7 +182,8 @@ The ports a router accepts connections on. Everything else is dropped. Sources a
 (the other sites, routed through the EVPN overlay), `trusted` (the trusted networks of the site file; on the WAN only if
 allowed there) and `wan`.
 
-The services of a site can be overridden in its site file (`firewall.services`); optional features open their ports only when enabled.
+The services of a site can be overridden in its site file (`firewall.services`); optional features open their ports only
+when enabled. The source of truth is [firewall.nix](nix/modules/options/firewall.nix): keep this table in sync.
 
 | Port | Protocol | From | Function |
 | --- | --- | --- | --- |
@@ -226,13 +207,20 @@ The services of a site can be overridden in its site file (`firewall.services`);
 
 ICMP and ICMPv6 are accepted from everywhere; echo requests from the WAN are limited per source (`firewall.icmpEchoRate`).
 
-Outgoing only (no port opened): logs to the central Vector (`observability.logging.vector`), CrowdSec's hub and community blocklist, NetBird's management service.
+Outgoing only (no port opened): logs to the central Vector (`observability.logging.vector`), CrowdSec's hub and
+community blocklist, NetBird's management service.
 
 ---
 
 ## Development
 
-Tool versions (Go, golangci-lint, Pulumi, fnox, Vault) are managed with [mise](https://mise.jdx.dev): run `mise trust` and `mise install` once, then use the usual commands (`make ...`, `go test ./...`).
+The tools are managed with [mise](https://mise.jdx.dev):
+
+```bash
+mise trust && mise install   # once
+make lint && make test       # in infrastructure/
+./router check               # in nix/
+```
 
 ---
 
@@ -250,4 +238,4 @@ Tool versions (Go, golangci-lint, Pulumi, fnox, Vault) are managed with [mise](h
   - Go modules, GitHub Actions, pre-commit hooks and the `nx` image (`nix/Containerfile`): patch, minor and digest
     updates are automerged;
   - `nix/flake.lock`: every Sunday 8-12 (Europe/Vienna), automerged, so the routers are deployed right after;
-  - a new NixOS release (`nixos-26.05` in `nix/flake.nix`): a pull request only.
+  - a new NixOS release (the `nixpkgs` input of `nix/flake.nix`): a pull request only.
