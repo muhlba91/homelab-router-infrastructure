@@ -755,4 +755,185 @@ lib.runTests {
     expr = fails spoke { router.wan.mac = lib.mkForce "02:00:00:71:00"; };
     expected = true;
   };
+
+  # wan.*.onLink: GatewayOnLink on the default route and the reply-to route of that family
+  # only; it needs a static gateway.
+  testWanOnLink =
+    let
+      routes = s: s.config.systemd.network.networks."10-wan".routes;
+      onLink =
+        s:
+        map (r: [
+          r.Gateway
+          (r.Table or "main")
+        ]) (lib.filter (r: r ? GatewayOnLink) (routes s));
+      both = with' spoke {
+        router.wan.v4.onLink = true;
+        router.wan.v6.onLink = true;
+      };
+    in
+    {
+      expr = {
+        default = onLink spoke;
+        v4 = onLink (with' spoke { router.wan.v4.onLink = true; });
+        both = onLink both;
+        dhcp = violations home { router.wan.v4.onLink = true; };
+        noGateway = violations spoke {
+          router.wan.v6.gateway = lib.mkForce null;
+          router.wan.v6.onLink = true;
+        };
+      };
+      expected = {
+        default = [ ];
+        v4 = [
+          [
+            "192.0.2.1"
+            "main"
+          ]
+          [
+            "192.0.2.1"
+            200
+          ]
+        ];
+        both = [
+          [
+            "192.0.2.1"
+            "main"
+          ]
+          [
+            "2001:db8:0:1::1"
+            "main"
+          ]
+          [
+            "192.0.2.1"
+            200
+          ]
+          [
+            "2001:db8:0:1::1"
+            200
+          ]
+        ];
+        dhcp = [ "router.wan.v4.onLink needs a static router.wan.v4.gateway" ];
+        noGateway = [ "router.wan.v6.onLink needs a static router.wan.v6.gateway" ];
+      };
+    };
+
+  # lan.bridge: a bridge with the LAN MAC and a permanent dummy port replaces the NIC rename.
+  testLanBridge =
+    let
+      bridged = with' spoke { router.lan.bridge = true; };
+      net = s: s.config.systemd.network;
+    in
+    {
+      expr = {
+        default = {
+          rename = (net spoke).links ? "10-lan";
+          bridge = (net spoke).netdevs ? "20-lan";
+          dummy = (net spoke).netdevs ? "19-lan-dummy";
+        };
+        bridged = {
+          rename = (net bridged).links ? "10-lan";
+          netdev = (net bridged).netdevs."20-lan".netdevConfig;
+          dummy = (net bridged).netdevs."19-lan-dummy".netdevConfig;
+          port = (net bridged).networks."19-lan-dummy".networkConfig.Bridge;
+          lan = (net bridged).networks."20-lan".matchConfig.Name;
+        };
+        longName = violations spoke {
+          router.lan.bridge = true;
+          router.lan.iface = "lan-interface0";
+        };
+      };
+      expected = {
+        default = {
+          rename = true;
+          bridge = false;
+          dummy = false;
+        };
+        bridged = {
+          rename = false;
+          netdev = {
+            Kind = "bridge";
+            Name = "lan0";
+            MACAddress = "02:00:00:71:00:02";
+          };
+          dummy = {
+            Kind = "dummy";
+            Name = "lan0-dummy";
+          };
+          port = "lan0";
+          lan = "lan0";
+        };
+        longName = [
+          "router.lan.iface is too long for the bridge's dummy port (lan-interface0-dummy: at most 15 characters)"
+        ];
+      };
+    };
+
+  # firewall.hairpin: the forwards also apply from the LAN to the WAN address, and the
+  # source is masqueraded towards the LAN; nothing of it without the option.
+  testFirewallHairpinNat =
+    let
+      on = with' spoke { router.firewall.hairpin = true; };
+      nat6 = s: s.config.networking.nftables.tables.nat6.content;
+    in
+    {
+      expr = {
+        default = has ''iifname "lan0"'' (nat4 spoke) || has ''iifname "lan0"'' (nat6 spoke);
+        dnat4 = has ''iifname "lan0" ip daddr 192.0.2.10 ip saddr { 198.51.100.0/24 } tcp dport { 443 } dnat to 10.71.0.10'' (
+          nat4 on
+        );
+        masq4 = has ''oifname "lan0" ip saddr 10.71.0.0/16 ct status dnat masquerade'' (nat4 on);
+        dnat6 = has ''iifname "lan0" ip6 daddr 2001:db8:0:1::10 udp dport { 51821 } dnat to fd71:0:0:1::10'' (
+          nat6 on
+        );
+        masq6 = has ''oifname "lan0" ip6 saddr fd71:0:0:1::/64 ct status dnat masquerade'' (nat6 on);
+        dhcpWan = violations home { router.firewall.hairpin = true; };
+      };
+      expected = {
+        default = false;
+        dnat4 = true;
+        masq4 = true;
+        dnat6 = true;
+        masq6 = true;
+        dhcpWan = [
+          "router.firewall.hairpin needs a static router.wan.v4.address for router.firewall.forwards.v4"
+        ];
+      };
+    };
+
+  # system.autoReboot: a timer in the window, only when enabled.
+  testAutoReboot =
+    let
+      timers = s: s.config.systemd.timers;
+      on = with' spoke {
+        router.system.autoReboot.enable = true;
+        router.system.autoReboot.window = "Sun 03:30";
+      };
+    in
+    {
+      expr = {
+        default = (timers spoke) ? router-auto-reboot;
+        window = (timers on).router-auto-reboot.timerConfig.OnCalendar;
+        defaultWindow =
+          (with' spoke { router.system.autoReboot.enable = true; })
+          .config.systemd.timers.router-auto-reboot.timerConfig.OnCalendar;
+      };
+      expected = {
+        default = false;
+        window = "Sun 03:30";
+        defaultWindow = "Mon 04:00";
+      };
+    };
+
+  # hardware.kernelParams end up on the kernel command line.
+  testKernelParams = {
+    expr = map (s: lib.elem "console=ttyS1,115200n8" s.config.boot.kernelParams) [
+      spoke
+      (with' spoke { router.hardware.kernelParams = [ "console=ttyS1,115200n8" ]; })
+    ];
+    expected = [
+      false
+      true
+    ];
+  };
 }

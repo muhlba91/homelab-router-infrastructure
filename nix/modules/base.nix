@@ -17,6 +17,8 @@ in
     }
   ];
 
+  boot.kernelParams = cfg.hardware.kernelParams;
+
   networking.hostName = cfg.site.hostname;
   networking.domain = cfg.site.domain;
   time.timeZone = cfg.site.timezone;

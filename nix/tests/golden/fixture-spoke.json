@@ -1,0 +1,261 @@
+{
+  "adguard": {
+    "dns": {
+      "bind_hosts": [
+        "0.0.0.0"
+      ],
+      "blocked_hosts": [
+        "version.bind",
+        "id.server",
+        "hostname.bind"
+      ],
+      "bootstrap_dns": [
+        "9.9.9.10",
+        "149.112.112.10",
+        "2620:fe::10",
+        "2620:fe::fe:10"
+      ],
+      "cache_enabled": true,
+      "cache_optimistic": true,
+      "cache_size": 4194304,
+      "enable_dnssec": true,
+      "port": 53,
+      "ratelimit": 1000,
+      "refuse_any": true,
+      "trusted_proxies": [
+        "127.0.0.0/8",
+        "::1/128"
+      ],
+      "upstream_dns": [
+        "tls://dns10.quad9.net",
+        "[/spoke.example.org/]10.71.0.1",
+        "[/home.example.org/]10.72.0.1"
+      ],
+      "upstream_mode": "load_balance"
+    },
+    "filtering": {
+      "blocking_mode": "nxdomain"
+    },
+    "filters": [
+      {
+        "enabled": true,
+        "id": 1,
+        "name": "AdGuard DNS filter",
+        "url": "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt"
+      },
+      {
+        "enabled": true,
+        "id": 2,
+        "name": "NoTracking",
+        "url": "https://raw.githubusercontent.com/notracking/hosts-blocklists/master/adblock/adblock.txt"
+      },
+      {
+        "enabled": true,
+        "id": 3,
+        "name": "OISD",
+        "url": "https://abp.oisd.nl"
+      },
+      {
+        "enabled": true,
+        "id": 4,
+        "name": "HaGeZi Multi PRO - Extended Protection",
+        "url": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt"
+      }
+    ],
+    "querylog": {
+      "interval": "7d"
+    },
+    "schema_version": 34,
+    "statistics": {
+      "interval": "30d"
+    }
+  },
+  "adguardStartPre": [
+    "/nix/store/unit-script-adguardhome-pre-start/bin/adguardhome-pre-start",
+    "+/nix/store/adguardhome-managed-rules/bin/adguardhome-managed-rules"
+  ],
+  "frr": "frr defaults traditional\nno zebra nexthop kernel enable\n\n!\n\nip prefix-list OUT4 seq 10 permit 10.71.0.0/16\nip prefix-list OUT4 seq 20 permit 192.0.2.0/24\nip prefix-list OUT4 seq 30 permit 10.71.255.1/32\nip prefix-list IN4 seq 5 deny 10.253.0.0/16 le 32\nip prefix-list IN4 seq 10 deny 10.71.0.0/16 le 32\nip prefix-list IN4 seq 20 deny 192.0.2.0/24 le 32\nip prefix-list IN4 seq 30 deny 10.71.255.1/32 le 32\nip prefix-list IN4 seq 1010 permit 10.0.0.0/8 le 32\nipv6 prefix-list OUT6 seq 10 permit fd71:0:0:1::/64\nipv6 prefix-list IN6 seq 10 deny fd71:0:0:1::/64 le 128\nipv6 prefix-list IN6 seq 1010 permit fc00::/7 le 128\nipv6 prefix-list IN6 seq 1020 permit 2001:678:dc0::/48 le 128\n!\n\nroute-map PEER-IN permit 10\n match ip address prefix-list IN4\nexit\nroute-map PEER-OUT permit 10\n match ip address prefix-list OUT4\nexit\nroute-map MESH-OUT permit 10\n match ip address prefix-list OUT4\nexit\nroute-map PEER-IN6 permit 10\n match ipv6 address prefix-list IN6\nexit\nroute-map PEER-OUT6 permit 10\n match ipv6 address prefix-list OUT6\nexit\nroute-map MESH-OUT6 permit 10\n match ipv6 address prefix-list OUT6\nexit\n!\nroute-map SRC4 permit 10\n set src 10.71.0.1\nexit\nip protocol bgp route-map SRC4\n!\nvrf mesh\n vni 50001\nexit-vrf\n!\nrouter bgp 64500\n bgp router-id 10.71.0.1\n no bgp default ipv4-unicast\n \n neighbor 10.253.0.1 remote-as internal\n neighbor 10.253.0.1 description hub-evpn\n neighbor 10.253.0.1 update-source wt0\n neighbor 10.253.0.1 timers 10 30\n neighbor 10.253.0.1 timers connect 10\n !\n address-family ipv4 unicast\n  network 10.71.0.0/16\n  network 192.0.2.0/24\n  network 10.71.255.1/32\n  \n  import vrf mesh\n  import vrf route-map PEER-IN\n exit-address-family\n !\n address-family ipv6 unicast\n  network fd71:0:0:1::/64\n  \n  import vrf mesh\n  import vrf route-map PEER-IN6\n exit-address-family\n !\n address-family l2vpn evpn\n  neighbor 10.253.0.1 activate\n  advertise-all-vni\n exit-address-family\nexit\n!\nrouter bgp 64500 vrf mesh\n bgp router-id 10.71.0.1\n !\n address-family ipv4 unicast\n  import vrf default\n  import vrf route-map MESH-OUT\n exit-address-family\n !\n address-family ipv6 unicast\n  import vrf default\n  import vrf route-map MESH-OUT6\n exit-address-family\n !\n address-family l2vpn evpn\n  advertise ipv4 unicast\n  advertise ipv6 unicast\n exit-address-family\nexit\n\n",
+  "kea4": {
+    "interfaces-config": {
+      "interfaces": [
+        "lan0"
+      ],
+      "service-sockets-max-retries": 30,
+      "service-sockets-retry-wait-time": 2000
+    },
+    "lease-database": {
+      "name": "/var/lib/kea/dhcp4.leases",
+      "persist": true,
+      "type": "memfile"
+    },
+    "loggers": [
+      {
+        "name": "kea-dhcp4",
+        "output_options": [
+          {
+            "output": "stdout"
+          }
+        ],
+        "severity": "INFO"
+      }
+    ],
+    "subnet4": [
+      {
+        "id": 1,
+        "option-data": [
+          {
+            "data": "10.71.0.1",
+            "name": "routers"
+          },
+          {
+            "data": "10.71.0.1",
+            "name": "domain-name-servers"
+          },
+          {
+            "data": "spoke.example.org",
+            "name": "domain-name"
+          },
+          {
+            "data": "spoke.example.org",
+            "name": "domain-search"
+          }
+        ],
+        "pools": [
+          {
+            "pool": "10.71.150.1 - 10.71.199.255"
+          }
+        ],
+        "reservations": [],
+        "subnet": "10.71.0.0/16"
+      }
+    ],
+    "valid-lifetime": 43200
+  },
+  "kea6": {
+    "interfaces-config": {
+      "interfaces": [
+        "lan0"
+      ],
+      "service-sockets-max-retries": 30,
+      "service-sockets-retry-wait-time": 2000
+    },
+    "lease-database": {
+      "name": "/var/lib/kea/dhcp6.leases",
+      "persist": true,
+      "type": "memfile"
+    },
+    "loggers": [
+      {
+        "name": "kea-dhcp6",
+        "output_options": [
+          {
+            "output": "stdout"
+          }
+        ],
+        "severity": "INFO"
+      }
+    ],
+    "mac-sources": [
+      "ipv6-link-local"
+    ],
+    "subnet6": [
+      {
+        "id": 1,
+        "interface": "lan0",
+        "option-data": [
+          {
+            "data": "fd71:0:0:1::1",
+            "name": "dns-servers"
+          },
+          {
+            "data": "spoke.example.org",
+            "name": "domain-search"
+          }
+        ],
+        "pools": [
+          {
+            "pool": "fd71:0:0:1:e000::1 - fd71:0:0:1:e000::ffff"
+          }
+        ],
+        "reservations": [],
+        "subnet": "fd71:0:0:1::/64"
+      }
+    ],
+    "valid-lifetime": 43200
+  },
+  "networkd": {
+    "05-lo.network": "[Match]\nName=lo\n\n[Network]\nAddress=10.71.255.1/32\nAddress=fd71:0:0:ff::1/128\n\n",
+    "10-lan.link": "[Match]\nMACAddress=02:00:00:71:00:02\n\n[Link]\nName=lan0\n\n",
+    "10-wan.link": "[Match]\nMACAddress=02:00:00:71:00:01\n\n[Link]\nName=wan0\n\n",
+    "10-wan.network": "[Match]\nName=wan0\n\n[Link]\nRequiredForOnline=routable\n\n[Network]\nIPv6AcceptRA=false\nAddress=192.0.2.10/24\nAddress=2001:db8:0:1::10/64\n\n[RoutingPolicyRule]\nFamily=both\nFirewallMark=268435456/268435456\nPriority=900\nTable=200\n\n[Route]\nGateway=192.0.2.1\n\n[Route]\nGateway=2001:db8:0:1::1\n\n[Route]\nGateway=192.0.2.1\nTable=200\n\n[Route]\nGateway=2001:db8:0:1::1\nTable=200\n\n",
+    "20-lan.network": "[Match]\nName=lan0\n\n[Link]\nRequiredForOnline=no\n\n[Network]\nConfigureWithoutCarrier=true\nIPv6AcceptRA=false\nAddress=10.71.0.1/16\nAddress=fd71:0:0:1::1/64\n\n",
+    "40-mesh.netdev": "[NetDev]\nKind=vrf\nName=mesh\n\n[VRF]\nTable=1001\n\n",
+    "40-mesh.network": "[Match]\nName=mesh\n\n[Link]\nRequiredForOnline=no\n\n[Network]\n\n",
+    "41-br50001.netdev": "[NetDev]\nKind=bridge\nMACAddress=02:5e:0a:47:00:01\nMTUBytes=1370\nName=br50001\n\n[Bridge]\nForwardDelaySec=0\nSTP=false\n\n",
+    "41-br50001.network": "[Match]\nName=br50001\n\n[Link]\nRequiredForOnline=no\n\n[Network]\nConfigureWithoutCarrier=true\nLinkLocalAddressing=no\nVRF=mesh\n\n",
+    "50-netbird-wt0.network": "[Match]\nName=wt0\n\n[Link]\nActivationPolicy=manual\nUnmanaged=true\n\n[Network]\n\n"
+  },
+  "networkdConf": "[Network]\nManageForeignRoutes=false\nManageForeignRoutingPolicyRules=false\n\n",
+  "nft": {
+    "nat4": "ip\nchain prerouting {\n  type nat hook prerouting priority dstnat; policy accept;\n  iifname \"wan0\" ip saddr { 198.51.100.0/24 } tcp dport { 443 } dnat to 10.71.0.10\n}\nchain postrouting {\n  type nat hook postrouting priority srcnat; policy accept;\n  # The announced WAN net sees every site as the WAN address\noifname \"wan0\" ip daddr 192.0.2.0/24 masquerade\n\n  # Internet-bound only; our other networks (trusted.v4) are routed, not NATed.\n  oifname \"wan0\" ip saddr 10.71.0.0/16 ip daddr != { 10.0.0.0/8 } masquerade\n}\n",
+    "nat6": "ip6\nchain prerouting {\n  type nat hook prerouting priority dstnat; policy accept;\n  iifname \"wan0\" udp dport { 51821 } dnat to fd71:0:0:1::10\n}\nchain postrouting {\n  type nat hook postrouting priority srcnat; policy accept;\n  \n  oifname \"wan0\" ip6 saddr fd71::/48 ip6 daddr != { fc00::/7, 2001:678:dc0::/48 } masquerade\n\n}\n",
+    "router": "inet\nset trusted4 { type ipv4_addr; flags interval; elements = { 10.0.0.0/8 } }\nset trusted6 { type ipv6_addr; flags interval; elements = { fc00::/7, 2001:678:dc0::/48 } }\n\n\n\nchain input {\n  type filter hook input priority filter; policy drop;\n  ct state vmap { established : accept, related : accept, invalid : drop }\n  iifname \"lo\" accept\n  # Echo from the WAN is limited per source; every other ICMP type stays open\n  # (neighbor discovery, router advertisements, path MTU discovery).\n  iifname \"wan0\" icmp type echo-request meter icmp_echo4 { ip saddr limit rate over 10/second } drop\n  iifname \"wan0\" icmpv6 type echo-request meter icmp_echo6 { ip6 saddr limit rate over 10/second } drop\n  ip protocol icmp accept\n  ip6 nexthdr icmpv6 accept\n\n  # Services (router.firewall.services)\n  # dhcp: udp { 67, 547 } from lan\n  iifname \"lan0\" udp dport { 67, 547 } accept\n  # dns: both { 53 } from lan, mesh, trusted\n  iifname \"lan0\" meta l4proto { tcp, udp } th dport { 53 } accept\n  iifname { \"br50001\", \"mesh\" } meta l4proto { tcp, udp } th dport { 53 } accept\n  ip saddr @trusted4 meta l4proto { tcp, udp } th dport { 53 } accept\n  ip6 saddr @trusted6 meta l4proto { tcp, udp } th dport { 53 } accept\n  # dns-ui: tcp { 3000 } from lan, trusted\n  iifname \"lan0\" tcp dport { 3000 } accept\n  ip saddr @trusted4 tcp dport { 3000 } accept\n  ip6 saddr @trusted6 tcp dport { 3000 } accept\n  # ntp: udp { 123 } from lan\n  iifname \"lan0\" udp dport { 123 } accept\n  # ssh: tcp { 22 } from lan, trusted\n  iifname \"lan0\" tcp dport { 22 } accept\n  ip saddr @trusted4 tcp dport { 22 } accept\n  ip6 saddr @trusted6 tcp dport { 22 } accept\n\n  # Infrastructure (generated from the features)\n  \n  # NetBird underlay: WireGuard from anywhere but the mesh (no tunnel through itself)\niifname != { \"br50001\", \"mesh\" } udp dport 51820 accept\n\n  # BGP only from the configured neighbours\n  \n  \n  \n  \n  # EVPN: VXLAN only through the overlay, from its range (with enforcePolicies NetBird's\n# policies decide first). BGP to the hub is our outgoing session (the hub only listens).\niifname \"wt0\" ip saddr 10.253.0.0/16 udp dport 4789 accept\n\n  \n  iifname \"wan0\" limit rate 5/second burst 20 packets log prefix \"nft-drop-in: \" level info\n}\n\n# Reply-to (routes: networking.nix): connections arriving on the WAN get a ct mark bit,\n# their packets from elsewhere (LAN replies, our own) the packet mark -> WAN table.\nchain wan_reply_pre {\n  type filter hook prerouting priority mangle; policy accept;\n  iifname \"wan0\" ct state new ct mark set ct mark or 0x10000000\n  iifname != \"wan0\" ct mark and 0x10000000 == 0x10000000 meta mark set meta mark or 0x10000000\n}\nchain wan_reply_out {\n  type route hook output priority mangle; policy accept;\n  ct mark and 0x10000000 == 0x10000000 meta mark set meta mark or 0x10000000\n}\n\n# NetBird underlay never into the mesh: a path check to an address the mesh routes (a\n# peer's LAN or client-NAT address) succeeds over the overlay, and the overlay would\n# then carry itself (a loop). The input chain refuses the other direction.\nchain output {\n  type filter hook output priority filter; policy accept;\n  oifname { \"br50001\", \"mesh\" } udp sport 51820 drop\n}\n\n\nchain forward {\n  type filter hook forward priority filter; policy drop;\n  # Hairpin: a host on the LAN reaching a network routed via another LAN host (e.g. a\n  # cluster's addresses). That host answers the client directly (same L2), so the router\n  # sees one direction only and conntrack would drop the client's ACKs as invalid.\n  iifname \"lan0\" oifname \"lan0\" accept\n  ct state vmap { established : accept, related : accept, invalid : drop }\n  ip protocol icmp accept\n  ip6 nexthdr icmpv6 accept\n\n  iifname \"lan0\" accept                       # lan -> anywhere\n  # TCP MSS follows the path MTU of the mesh (VXLAN 1370 < 1500), both directions\noifname { \"br50001\", \"mesh\" } tcp flags syn tcp option maxseg size set rt mtu\niifname { \"br50001\", \"mesh\" } oifname \"lan0\" accept  # mesh -> lan (spoke: no transit)\n\n  iifname { \"br50001\", \"mesh\" } oifname \"wan0\" ip daddr 192.0.2.0/24 accept  # mesh -> announced WAN net\n\n  \n  ct status dnat accept                           # port forwards\n  iifname \"wan0\" oifname \"lan0\" ip saddr @trusted4 accept\niifname \"wan0\" oifname \"lan0\" ip6 saddr @trusted6 accept\n\n  \n  iifname \"wan0\" limit rate 5/second burst 20 packets log prefix \"nft-drop-fwd: \" level info\n}\n"
+  },
+  "radvd": "interface lan0 {\n  AdvSendAdvert on;\n  MinRtrAdvInterval 200;\n  MaxRtrAdvInterval 300;\n  AdvLinkMTU 1500;\n  AdvCurHopLimit 64;\n  AdvManagedFlag on;\n  AdvOtherConfigFlag on;\n  RemoveAdvOnExit on;\n  prefix fd71:0:0:1::/64 {\n    DeprecatePrefix on;\n    AdvOnLink on;\n    AdvAutonomous off;\n  };\n  RDNSS fd71:0:0:1::1 {\n  };\n  DNSSL spoke.example.org {\n  };\n};\n",
+  "secrets": {
+    "adguard-password-hash": {
+      "group": "root",
+      "mode": "0400",
+      "owner": "root",
+      "path": "/var/lib/secrets/adguard-password-hash",
+      "reload": "systemctl try-restart adguardhome.service"
+    },
+    "netbird-setup-key": {
+      "group": "root",
+      "mode": "0400",
+      "owner": "root",
+      "path": "/var/lib/secrets/netbird-setup-key",
+      "reload": "systemctl restart netbird-backbone-login.service"
+    },
+    "ssh-host-key": {
+      "group": "root",
+      "mode": "0400",
+      "owner": "root",
+      "path": "/var/lib/secrets/ssh-host-key",
+      "reload": "systemctl reload sshd.service"
+    }
+  },
+  "secretsActivation": "install -d -m 0711 -o root -g root /var/lib/secrets\nif [ ! -s /var/lib/secrets/adguard-password-hash ]; then\n  echo \"router-secrets: /var/lib/secrets/adguard-password-hash is missing or empty (deliver it: ./router push-secrets <site>)\" >&2\n  false\nelse\n  [ \"$(stat -c %U:%G:%a /var/lib/secrets/adguard-password-hash)\" = \"root:root:400\" ] \\\n  || { chown root:root /var/lib/secrets/adguard-password-hash && chmod 0400 /var/lib/secrets/adguard-password-hash; }\n\nfi\n\nif [ ! -s /var/lib/secrets/netbird-setup-key ]; then\n  echo \"router-secrets: /var/lib/secrets/netbird-setup-key is missing or empty (deliver it: ./router push-secrets <site>)\" >&2\n  false\nelse\n  [ \"$(stat -c %U:%G:%a /var/lib/secrets/netbird-setup-key)\" = \"root:root:400\" ] \\\n  || { chown root:root /var/lib/secrets/netbird-setup-key && chmod 0400 /var/lib/secrets/netbird-setup-key; }\n\nfi\n\nif [ ! -s /var/lib/secrets/ssh-host-key ]; then\n  echo \"router-secrets: /var/lib/secrets/ssh-host-key is missing or empty (deliver it: ./router push-secrets <site>)\" >&2\n  false\nelse\n  [ \"$(stat -c %U:%G:%a /var/lib/secrets/ssh-host-key)\" = \"root:root:400\" ] \\\n  || { chown root:root /var/lib/secrets/ssh-host-key && chmod 0400 /var/lib/secrets/ssh-host-key; }\n\nfi\n\n",
+  "sysctl": {
+    "fs.inotify.max_user_instances": 524288,
+    "fs.inotify.max_user_watches": 524288,
+    "kernel.kptr_restrict": 1,
+    "kernel.pid_max": 4194304,
+    "kernel.poweroff_cmd": "/nix/store/systemd/sbin/poweroff",
+    "kernel.printk": 4,
+    "net.core.rmem_max": null,
+    "net.core.wmem_max": null,
+    "net.ipv4.conf.all.accept_redirects": 0,
+    "net.ipv4.conf.all.accept_source_route": 0,
+    "net.ipv4.conf.all.rp_filter": 2,
+    "net.ipv4.conf.all.send_redirects": 0,
+    "net.ipv4.conf.default.accept_redirects": 0,
+    "net.ipv4.conf.default.accept_source_route": 0,
+    "net.ipv4.conf.default.rp_filter": 2,
+    "net.ipv4.conf.default.send_redirects": 0,
+    "net.ipv4.ip_forward": 1,
+    "net.ipv4.ping_group_range": "0 2147483647",
+    "net.ipv4.tcp_l3mdev_accept": 1,
+    "net.ipv4.tcp_syncookies": 1,
+    "net.ipv4.udp_l3mdev_accept": 1,
+    "net.ipv6.conf.all.accept_redirects": 0,
+    "net.ipv6.conf.all.accept_source_route": 0,
+    "net.ipv6.conf.all.disable_ipv6": false,
+    "net.ipv6.conf.all.forwarding": 1,
+    "net.ipv6.conf.default.accept_redirects": 0,
+    "net.ipv6.conf.default.accept_source_route": 0,
+    "net.ipv6.conf.default.disable_ipv6": false,
+    "net.ipv6.conf.default.use_tempaddr": "2",
+    "vm.max_map_count": 1048576
+  }
+}

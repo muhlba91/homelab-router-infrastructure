@@ -22,6 +22,8 @@ hardware:
     # name: ups
     # driver: usbhid-ups
     # port: auto
+  # optional: extra kernel command line parameters
+  # kernelParams: ["console=ttyS0,115200"]
 
 # optional system settings
 system:
@@ -30,6 +32,10 @@ system:
   gc:
     olderThan: 7d
     keep: 3
+  # optional: reboot when the kernel, initrd or modules changed; window: systemd OnCalendar
+  # autoReboot:
+  #   enabled: true
+  #   window: "Mon 04:00"
 
 # required network settings
 network:
@@ -50,6 +56,8 @@ network:
       netmask: 24
       gateway: 203.0.113.1
       announce: false
+      # the gateway is on-link although outside the address' subnet (e.g. a /32); needs a static gateway
+      # onLink: true
     v6:
       method: static
       address: "2001:db8:1::10"
@@ -57,10 +65,13 @@ network:
       gateway: "2001:db8:1::1"
       # only a ULA WAN network can be announced
       announce: false
+      # onLink: true
 
   lan:
     mac: "00:00:00:00:00:02"
     interface: lan0
+    # a bridge with the MAC and no physical port, instead of a renamed NIC
+    # bridge: true
     v4:
       address: 10.46.0.1
       netmask: 16
@@ -116,6 +127,8 @@ dns:
 
 # optional firewall settings
 firewall:
+  # LAN hosts reach forwarded ports on the WAN address (hairpin NAT); needs a static WAN address
+  # hairpin: true
   forwards:
     v4: []
       # - proto: tcp

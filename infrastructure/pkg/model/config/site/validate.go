@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/muhlba91/pulumi-shared-library/pkg/util/defaults"
 )
@@ -29,6 +30,8 @@ func (c *Config) Validate() error {
 
 	if c.Hardware == nil || c.Hardware.Profile == "" || c.Hardware.Disk == "" {
 		add(errors.New("hardware: profile and disk are required"))
+	} else {
+		errs = append(errs, c.Hardware.validate()...)
 	}
 	if c.Network == nil {
 		add(errors.New("network: required"))
@@ -52,6 +55,22 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// validate checks the hardware section: kernel parameters are rendered into a Nix string, so they must not hold
+// characters that end or interpolate it.
+func (h *HardwareConfig) validate() []error {
+	var errs []error
+	for i, p := range h.KernelParams {
+		if p == "" || strings.ContainsAny(p, "\"\\$ \t\n") {
+			errs = append(
+				errs,
+				fmt.Errorf("hardware.kernelParams[%d]: %q is empty or holds a quote, backslash, $ or whitespace", i, p),
+			)
+		}
+	}
+
+	return errs
 }
 
 // validate checks the network section.
@@ -112,14 +131,19 @@ func (w *WANConfig) validate() []error {
 // dynamic: The name of the dynamic method of the address family.
 // maxPrefix: The longest prefix length of the address family.
 func (w *WANIPConfig) validate(field, dynamic string, maxPrefix int) []error {
+	var errs []error
 	switch w.Method {
 	case dynamic:
-		return nil
 	case methodStatic:
-		return validateAddress(field, &w.IPConfig, maxPrefix)
+		errs = append(errs, validateAddress(field, &w.IPConfig, maxPrefix)...)
 	default:
 		return []error{fmt.Errorf("%s.method: %q is not %q or %q", field, w.Method, methodStatic, dynamic)}
 	}
+	if defaults.GetOrDefault(w.OnLink, false) && (w.Method != methodStatic || w.Gateway == nil || *w.Gateway == "") {
+		errs = append(errs, fmt.Errorf("%s.onLink: needs the %s method and a gateway", field, methodStatic))
+	}
+
+	return errs
 }
 
 // validate checks the LAN section.

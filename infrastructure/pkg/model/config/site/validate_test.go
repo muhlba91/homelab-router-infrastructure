@@ -93,7 +93,18 @@ func TestValidate(t *testing.T) {
 			func(c *site.Config) { c.DHCP.Reservations = []*site.DHCPReservation{nil} },
 			"dhcp.reservations[0]",
 		},
-		"nil loopback": {func(c *site.Config) { c.Network.Loopbacks = []*site.LoopbackConfig{nil} }, "loopbacks[0]"},
+		"kernel param with quote": {
+			func(c *site.Config) { c.Hardware.KernelParams = []string{`a"b`} },
+			"kernelParams[0]",
+		},
+		"kernel param interpolate": {
+			func(c *site.Config) { c.Hardware.KernelParams = []string{"${x}"} },
+			"kernelParams[0]",
+		},
+		"nil loopback": {
+			func(c *site.Config) { c.Network.Loopbacks = []*site.LoopbackConfig{nil} },
+			"loopbacks[0]",
+		},
 		"nil routable": {func(c *site.Config) {
 			c.Network.AdditionalRoutableNetworks = []*site.AdditionalRoutableNetworkConfig{nil}
 		}, "additionalRoutableNetworks[0]"},
@@ -170,6 +181,54 @@ func TestValidateStaticWAN(t *testing.T) {
 	c.Network.WAN.V6 = &site.WANIPConfig{Method: "dhcp6"}
 
 	require.NoError(t, c.Validate())
+}
+
+func TestValidateOnLink(t *testing.T) {
+	static := func(gateway *string, onLink bool) *site.WANIPConfig {
+		return &site.WANIPConfig{
+			Method:   "static",
+			IPConfig: site.IPConfig{Address: ptr("192.0.2.2"), Netmask: ptr(32)},
+			Gateway:  gateway,
+			OnLink:   ptr(onLink),
+		}
+	}
+	cases := map[string]struct {
+		v4, v6 *site.WANIPConfig
+		want   string
+	}{
+		"v4 static with gateway": {v4: static(ptr("192.0.2.1"), true)},
+		"v6 static with gateway": {v6: static(ptr("fe80::1"), true)},
+		"v4 off without gateway": {v4: static(nil, false)},
+		"v4 dhcp": {
+			v4:   &site.WANIPConfig{Method: "dhcp", OnLink: ptr(true)},
+			want: "network.wan.v4.onLink",
+		},
+		"v4 no gateway":    {v4: static(nil, true), want: "network.wan.v4.onLink"},
+		"v4 empty gateway": {v4: static(ptr(""), true), want: "network.wan.v4.onLink"},
+		"v6 dhcp6": {
+			v6:   &site.WANIPConfig{Method: "dhcp6", OnLink: ptr(true)},
+			want: "network.wan.v6.onLink",
+		},
+		"v6 no gateway": {v6: static(nil, true), want: "network.wan.v6.onLink"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := parse(t)
+			if tc.v4 != nil {
+				c.Network.WAN.V4 = tc.v4
+			}
+			c.Network.WAN.V6 = tc.v6
+
+			err := c.Validate()
+			if tc.want == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
 }
 
 func TestUses(t *testing.T) {

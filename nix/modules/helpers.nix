@@ -17,6 +17,12 @@
     quote = map (s: ''"${s}"'');
     nftSet = l: "{ ${lib.concatStringsSep ", " l} }";
     isV6 = a: lib.hasInfix ":" a;
+    # The files of a system that only a reboot activates (a changed one means: reboot).
+    bootFiles = [
+      "kernel"
+      "initrd"
+      "kernel-modules"
+    ];
     # Powers of two (nixpkgs lib has no pow).
     pow2 = n: lib.foldl (a: _: a * 2) 1 (lib.genList (x: x) n);
     # Network of an IPv4 CIDR ("10.50.0.1/31" -> "10.50.0.0/31").

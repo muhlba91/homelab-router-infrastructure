@@ -150,6 +150,12 @@
         _: system: import ./tests/dump.nix system.config
       ) self.nixosConfigurations;
 
+      # `./router golden`: the golden dumps of the shared fixtures (tests/golden.nix).
+      fixtureGolden = import ./tests/golden.nix {
+        inherit lib;
+        fixtures = hostsIn ./tests/sites;
+      };
+
       # `deploy .#<site>` (use ./router deploy <site>). The first install of a new box
       # is `nixos-anywhere` (./router install <site>), not deploy-rs.
       deploy.nodes = lib.genAttrs deployableSites (site: {
@@ -216,6 +222,7 @@
               pkgs.nixos-anywhere
               pkgs.openssh # ssh/nix copy to the router (also inside the ./nx container)
               pkgs.git
+              pkgs.jq
               pkgs.nixfmt
             ];
           };

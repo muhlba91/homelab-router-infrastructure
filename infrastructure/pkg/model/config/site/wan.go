@@ -32,4 +32,7 @@ type WANIPConfig struct {
 	// Announce indicates whether the static WAN network is announced in BGP and reachable from the other sites,
 	// masqueraded to the WAN address (IPv6 only for a ULA WAN), e.g. a transfer net to a hypervisor.
 	Announce *bool `yaml:"announce,omitempty"`
+	// OnLink indicates that the gateway is reachable on-link although outside the address' subnet (e.g. a /32
+	// address). Needs the static method and a Gateway.
+	OnLink *bool `yaml:"onLink,omitempty"`
 }
