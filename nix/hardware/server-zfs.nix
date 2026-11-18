@@ -45,8 +45,8 @@ in
     }) esps disks;
   };
 
-  # ZFS: the host id comes from the host name; the ARC is capped, because the guests need the
-  # memory.
+  # ZFS: the host id comes from the host name (renaming the host changes it: the root pool then
+  # needs one `zpool import -f`); the ARC is capped, because the guests need the memory.
   networking.hostId = builtins.substring 0 8 (builtins.hashString "sha256" cfg.site.hostname);
   boot.kernelParams = [ "zfs.zfs_arc_max=${toString arcMax}" ];
   boot.zfs.forceImportRoot = false;
