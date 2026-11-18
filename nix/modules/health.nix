@@ -1,7 +1,8 @@
 # `router-health` (./router health, after every deploy): the BGP sessions are established
 # (given a minute: a deploy may restart FRR), no unit has failed; a pending reboot (the
 # booted kernel, initrd or modules are not the current system's) is a warning. Exits 1 on
-# a failure. With hypervisor.zfsDataset, a pool over 75% full is a warning, an unreadable one a failure.
+# a failure. With hypervisor.zfsDataset, a pool over 75% full or not ONLINE is a warning, an
+# unreadable one a failure.
 {
   config,
   lib,
@@ -22,7 +23,9 @@ let
       cap=$(zpool list -H -o capacity ${pool} 2>/dev/null | tr -d %) || cap=""
       if [ -z "$cap" ]; then echo "FAIL zfs pool ${pool}: not readable"; rc=1
       elif [ "$cap" -gt 75 ]; then echo "warn zfs pool ${pool} is $cap% full"
-      else echo "ok   zfs pool ${pool}: $cap% used"; fi''
+      else echo "ok   zfs pool ${pool}: $cap% used"; fi
+      state=$(zpool list -H -o health ${pool})
+      [ "$state" = ONLINE ] || echo "warn zfs pool ${pool} is $state"''
   );
 in
 {

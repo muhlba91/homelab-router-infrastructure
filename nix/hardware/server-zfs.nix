@@ -88,7 +88,13 @@ in
                   type = "filesystem";
                   format = "vfat";
                   mountpoint = lib.elemAt esps i;
-                  mountOptions = [ "umask=0077" ];
+                  # With a disk missing, the box must still boot from the other one: its ESP
+                  # is not required, and the wait for the missing one is short.
+                  mountOptions = [
+                    "umask=0077"
+                    "nofail"
+                    "x-systemd.device-timeout=10s"
+                  ];
                 };
               };
               zfs = {
