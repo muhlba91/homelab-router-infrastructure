@@ -10,6 +10,8 @@
 #                 kea-dhcp4/6 -t (without interface names: the LAN NIC does not exist here),
 #                 vtysh -C (FRR itself only logs a bad line)
 #   eval          tests/eval.nix on the fixtures (lib.runTests; prints the failing tests)
+#   golden-<name> the dump of a shared fixture against tests/golden/<name>.json (tests/golden.nix);
+#                 fails when a change alters it (intended: ./router golden)
 {
   pkgs,
   lib,
@@ -85,6 +87,15 @@ let
       '';
 
   evalFailures = import ./eval.nix { inherit lib fixtures; };
+
+  goldenCheck =
+    name: dump:
+    pkgs.runCommand "check-golden-${name}" { nativeBuildInputs = [ pkgs.jq ]; } ''
+      jq -S . ${file "${name}.json" dump} > actual.json
+      diff -u ${./golden + "/${name}.json"} actual.json \
+        || { echo "golden-${name} differs: if intended, run ./router golden and commit"; exit 1; }
+      touch $out
+    '';
 in
 {
   eval = pkgs.runCommand "check-eval" { } (
@@ -131,3 +142,6 @@ in
 // lib.mapAttrs' (
   name: system: lib.nameValuePair "site-${name}" (siteCheck name system)
 ) configurations
+// lib.mapAttrs' (name: dump: lib.nameValuePair "golden-${name}" (goldenCheck name dump)) (
+  import ./golden.nix { inherit lib fixtures; }
+)

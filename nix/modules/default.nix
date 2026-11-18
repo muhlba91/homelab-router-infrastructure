@@ -9,6 +9,7 @@
     ./base.nix
     ./ssh.nix
     ./nix.nix
+    ./auto-reboot.nix
     ./networking.nix
     ./firewall.nix
     ./crowdsec.nix

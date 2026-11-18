@@ -8,6 +8,8 @@ type HardwareConfig struct {
 	Disk string `yaml:"disk"`
 	// UPS is the UPS attached to the router (NUT).
 	UPS *UPSConfig `yaml:"ups,omitempty"`
+	// KernelParams are extra kernel command line parameters.
+	KernelParams []string `yaml:"kernelParams,omitempty"`
 }
 
 // UPSConfig defines the UPS attached to the router: NUT reads it, serves it to the LAN and shuts the router down

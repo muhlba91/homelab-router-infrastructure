@@ -77,6 +77,7 @@ in
         description = "Hand-written hardware/boot profile: hardware/<profile>.nix (`qemu`: any x86_64 VM, BIOS or UEFI; `n100`: an Intel N100/N150 mini PC, UEFI).";
       };
       disk = strD "/dev/sda" "Install disk (disko). A physical box: its `/dev/disk/by-id/` path (USB disks, e.g. a KVM's virtual one, can take `/dev/sda`).";
+      kernelParams = strList [ ] "Extra kernel command line parameters (e.g. a serial console).";
       ups = {
         enable = bool false ''
           A UPS on this router (NUT): the router reads it, serves it to the LAN (upsd on TCP
@@ -95,6 +96,14 @@ in
         device, and if the system hangs for this long, the hardware resets it. Needs a watchdog
         device (a Proxmox VM: q35 has one built in; without one, e.g. a cloud VM: `0s`).
       '';
+      autoReboot = {
+        enable = bool false ''
+          Reboot when the booted kernel, initrd or kernel modules differ from the current system
+          (a deploy activates everything else without a reboot; a change of `kernelParams` is not
+          detected). Off: a pending reboot is only reported by `router-health`.
+        '';
+        window = strD "Mon 04:00" "When the reboot check runs (systemd `OnCalendar`).";
+      };
       gc = {
         olderThan = typedD (types.strMatching "[0-9]+d") "7d" ''
           Garbage collection (daily) deletes system generations older than this (`<n>d`).

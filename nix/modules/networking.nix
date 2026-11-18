@@ -15,26 +15,26 @@ let
   v4Static = wan.v4.method == "static";
   v6Static = wan.v6.method == "static";
   v6Dhcp = wan.v6.method == "dhcp6";
-  # WAN gateways for the reply-to table (networkd fills _dhcp4/_ipv6ra from DHCP/RA).
+  # A route through a WAN gateway, on-link where the gateway lies outside the address' subnet.
+  viaGateway = gw: onLink: { Gateway = gw; } // lib.optionalAttrs onLink { GatewayOnLink = true; };
+  # WAN gateway routes for the reply-to table (networkd fills _dhcp4/_ipv6ra from DHCP/RA).
   wanGateways =
-    lib.optional (v4Static && wan.v4.gateway != null) wan.v4.gateway
-    ++ lib.optional (wan.v4.method == "dhcp") "_dhcp4"
-    ++ lib.optional (v6Static && wan.v6.gateway != null) wan.v6.gateway
-    ++ lib.optional v6Dhcp "_ipv6ra";
+    lib.optional (v4Static && wan.v4.gateway != null) (viaGateway wan.v4.gateway wan.v4.onLink)
+    ++ lib.optional (wan.v4.method == "dhcp") { Gateway = "_dhcp4"; }
+    ++ lib.optional (v6Static && wan.v6.gateway != null) (viaGateway wan.v6.gateway wan.v6.onLink)
+    ++ lib.optional v6Dhcp { Gateway = "_ipv6ra"; };
+  lanDummy = "${d.lanIf}-dummy";
 
   wanNetwork = {
     matchConfig.Name = d.wanIf;
     address = lib.optional v4Static wan.v4.address ++ lib.optional v6Static wan.v6.address;
     routes =
-      lib.optional (v4Static && wan.v4.gateway != null) { Gateway = wan.v4.gateway; }
-      ++ lib.optional (v6Static && wan.v6.gateway != null) { Gateway = wan.v6.gateway; }
+      lib.optional (v4Static && wan.v4.gateway != null) (viaGateway wan.v4.gateway wan.v4.onLink)
+      ++ lib.optional (v6Static && wan.v6.gateway != null) (viaGateway wan.v6.gateway wan.v6.onLink)
       # Reply-to: connections that arrived on the WAN are answered through it, even if the
       # mesh knows a shorter path to the source (else the upstream drops the asymmetric
       # replies). Marks: modules/firewall.nix.
-      ++ map (gw: {
-        Gateway = gw;
-        Table = d.wanReply.table;
-      }) wanGateways;
+      ++ map (gw: gw // { Table = d.wanReply.table; }) wanGateways;
     routingPolicyRules = lib.optional (wanGateways != [ ]) {
       FirewallMark = "${toString d.wanReply.mark}/${toString d.wanReply.mark}";
       Table = d.wanReply.table;
@@ -81,6 +81,19 @@ in
       assertion = !v6Static || wan.v6.address != null;
       message = "router.wan.v6.method = static needs router.wan.v6.address";
     }
+    {
+      assertion = !wan.v4.onLink || (v4Static && wan.v4.gateway != null);
+      message = "router.wan.v4.onLink needs a static router.wan.v4.gateway";
+    }
+    {
+      assertion = !wan.v6.onLink || (v6Static && wan.v6.gateway != null);
+      message = "router.wan.v6.onLink needs a static router.wan.v6.gateway";
+    }
+    {
+      # The kernel limits interface names to 15 characters.
+      assertion = !cfg.lan.bridge || lib.stringLength lanDummy <= 15;
+      message = "router.lan.iface is too long for the bridge's dummy port (${lanDummy}: at most 15 characters)";
+    }
   ];
 
   networking.useNetworkd = true;
@@ -120,7 +133,7 @@ in
     matchConfig.MACAddress = wan.mac;
     linkConfig.Name = d.wanParent;
   };
-  systemd.network.links."10-lan" = {
+  systemd.network.links."10-lan" = lib.mkIf (!cfg.lan.bridge) {
     matchConfig.MACAddress = cfg.lan.mac;
     linkConfig.Name = d.lanIf;
   };
@@ -148,6 +161,28 @@ in
     vlanConfig.Id = wan.vlan;
   };
   systemd.network.networks."11-wan" = lib.mkIf (wan.vlan != null) wanNetwork;
+
+  # lan.bridge: the LAN device is a bridge with the LAN MAC. Its permanent dummy port gives it
+  # carrier, so the LAN addresses leave the tentative state and Kea, radvd and AdGuard can bind
+  # without a guest running; guests join the bridge as ports.
+  systemd.network.netdevs."20-lan" = lib.mkIf cfg.lan.bridge {
+    netdevConfig = {
+      Kind = "bridge";
+      Name = d.lanIf;
+      MACAddress = cfg.lan.mac;
+    };
+  };
+  systemd.network.netdevs."19-lan-dummy" = lib.mkIf cfg.lan.bridge {
+    netdevConfig = {
+      Kind = "dummy";
+      Name = lanDummy;
+    };
+  };
+  systemd.network.networks."19-lan-dummy" = lib.mkIf cfg.lan.bridge {
+    matchConfig.Name = lanDummy;
+    networkConfig.Bridge = d.lanIf;
+    linkConfig.RequiredForOnline = "no";
+  };
 
   systemd.network.networks."20-lan" = {
     matchConfig.Name = d.lanIf;

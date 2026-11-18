@@ -97,6 +97,12 @@ in
           '';
         };
       };
+      hairpin = bool false ''
+        Hairpin NAT for forwards.v4/v6: LAN hosts reaching the WAN address on a forwarded port
+        are DNATed and masqueraded, so the target answers through the router. A forward's
+        `from` applies to them too. Needs a static WAN address of each family that has
+        forwards. Not covered: the router's own traffic.
+      '';
       services = mkOption {
         type = types.attrsOf service;
         default = { };

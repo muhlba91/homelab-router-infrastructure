@@ -85,6 +85,9 @@ Conventions:
       ups.port = "{{ . }}";
       {{- end }}
       {{- end }}
+      {{- with .Router.Hardware.KernelParams }}
+      kernelParams = [ {{ range . }}"{{ . }}" {{ end }}];
+      {{- end }}
     };
 
     {{- with .Router.System }}
@@ -97,6 +100,14 @@ Conventions:
     {{- end }}
     {{- with .Keep }}
     system.gc.keep = {{ . }};
+    {{- end }}
+    {{- end }}
+    {{- with .AutoReboot }}
+    {{- with .Enabled }}
+    system.autoReboot.enable = {{ . }};
+    {{- end }}
+    {{- with .Window }}
+    system.autoReboot.window = "{{ . }}";
     {{- end }}
     {{- end }}
     {{- end }}
@@ -123,6 +134,9 @@ Conventions:
         {{- with $wan.V4.Announce }}
         announce = {{ . }};
         {{- end }}
+        {{- with $wan.V4.OnLink }}
+        onLink = {{ . }};
+        {{- end }}
       };
       v6 = {
         {{- with $wan.V6 }}
@@ -135,6 +149,9 @@ Conventions:
         {{- end }}
         {{- with .Announce }}
         announce = {{ . }};
+        {{- end }}
+        {{- with .OnLink }}
+        onLink = {{ . }};
         {{- end }}
         {{- else }}
         method = "none";
@@ -150,6 +167,9 @@ Conventions:
       v6 = "{{ $lan.V6.Address }}/{{ $lan.V6.Netmask }}";
       v6Net = "{{ $lan.V6.Network }}/{{ $lan.V6.Netmask }}";
       v6Supernet = "{{ $lan.V6.Supernet }}";
+      {{- with $lan.Bridge }}
+      bridge = {{ . }};
+      {{- end }}
     };
 
     {{- /* A public LAN prefix is routed as it is; a ULA LAN reaches the internet through NAT66. */}}
@@ -211,6 +231,9 @@ Conventions:
     };
 
     {{- with .Router.Firewall }}
+    {{- with .Hairpin }}
+    firewall.hairpin = {{ . }};
+    {{- end }}
     {{- with .Forwards }}
     {{- with .V4 }}
     firewall.forwards.v4 = [

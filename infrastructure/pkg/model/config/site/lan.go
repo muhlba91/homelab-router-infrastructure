@@ -8,6 +8,8 @@ type LANConfig struct {
 	V4 *LANIPv4Config `yaml:"v4"`
 	// V6 is the IPv6 configuration of the LAN (required).
 	V6 *LANIPv6Config `yaml:"v6"`
+	// Bridge indicates that the LAN is a bridge with the LAN MAC and a permanent dummy port, instead of a renamed NIC.
+	Bridge *bool `yaml:"bridge,omitempty"`
 }
 
 // LANIPConfig defines the LAN IP configuration for a site.

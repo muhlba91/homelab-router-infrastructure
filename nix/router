@@ -9,6 +9,7 @@
 #   ./router check                       flake checks: lint, deploy schema, eval tests, every site (nft, radvd, kea)
 #   ./router fmt                         format all .nix files (nixfmt, the flake's formatter)
 #   ./router dump <site>                 evaluated config as JSON (diff before/after a refactor)
+#   ./router golden                      rewrite tests/golden/ (the dumps the golden-* checks compare)
 #   ./router push-secrets <site>         deliver $OUTPUTS/keys/<site>/secrets/ to the router
 #   ./router deploy <site> [deploy args] push secrets, then deploy-rs (magic rollback); without
 #                                        args, skipped if the router already runs this system
@@ -78,7 +79,7 @@ push_secrets() {
 }
 
 cmd=${1:-}; site=${2:-}
-case "$cmd" in sites | check | fmt) ;; *) [ -n "$site" ] || usage; shift 2 ;; esac
+case "$cmd" in sites | check | fmt | golden) ;; *) [ -n "$site" ] || usage; shift 2 ;; esac
 case "$cmd" in
   sites)
     ev --raw .#routerSites ;;
@@ -87,6 +88,11 @@ case "$cmd" in
     ./nx -r nix flake check -L --keep-going $OVERRIDE || die "checks failed" ;;
   fmt)
     ./nx -r nix fmt ;;
+  golden)
+    mkdir -p tests/golden
+    for f in $(ev --raw --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' .#fixtureGolden); do
+      ev --raw ".#fixtureGolden.\"$f\"" | ./nx jq -S . > "tests/golden/$f.json"
+    done ;;
   dump)
     ev --json ".#routerDump.\"$site\"" ;;
   push-secrets)

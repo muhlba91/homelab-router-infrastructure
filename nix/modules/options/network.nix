@@ -47,6 +47,7 @@ in
         };
         address = nullable cidr4 "Address with prefix length (required for `static`).";
         gateway = nullable ip4 "Default gateway (static).";
+        onLink = bool false "The gateway is reachable on-link although outside the address' subnet (networkd `GatewayOnLink`; e.g. a /32 address).";
         announce = bool false ''
           Announce the WAN IPv4 network (static) in BGP and let the other sites reach it,
           masqueraded to the WAN address (e.g. a transfer net to a hypervisor's management).
@@ -64,6 +65,7 @@ in
         };
         address = nullable cidr6 "Address with prefix length (required for `static`).";
         gateway = nullable ip6 "Default gateway (static).";
+        onLink = bool false "The gateway is reachable on-link although outside the address' prefix (networkd `GatewayOnLink`).";
         announce = bool false ''
           Announce the WAN IPv6 network (static, ULA) in BGP and let the other sites reach it,
           masqueraded to the WAN address (e.g. a transfer net to a hypervisor's management).
@@ -78,8 +80,13 @@ in
     };
 
     lan = {
-      mac = typed mac "MAC of the LAN NIC (a change needs a reboot).";
-      iface = strD "lan0" "Name given to the LAN NIC (a change needs a reboot).";
+      mac = typed mac "MAC of the LAN NIC, or of the bridge with `bridge` (a change needs a reboot).";
+      iface = strD "lan0" "Name given to the LAN NIC, or to the bridge with `bridge` (a change needs a reboot).";
+      bridge = bool false ''
+        The LAN is a bridge (`iface`) with the MAC `mac` and no physical port, instead of a
+        renamed NIC: guests attach to it. A permanent dummy port (`<iface>-dummy`) gives it
+        carrier, so its addresses and the LAN services come up without a guest.
+      '';
       v4 = typed cidr4 "Router address with prefix length.";
       v4Net = typed cidr4 "IPv4 network.";
       v6 = typed cidr6 "Router IPv6 address with prefix length.";

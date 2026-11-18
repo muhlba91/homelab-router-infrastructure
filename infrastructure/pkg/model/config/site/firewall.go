@@ -12,6 +12,9 @@ type FirewallConfig struct {
 	ExtraForwardRules *string `yaml:"extraForwardRules,omitempty"`
 	// LogDrops is the logging of the connections from the WAN that are dropped.
 	LogDrops *LogDropsConfig `yaml:"logDrops,omitempty"`
+	// Hairpin indicates whether LAN hosts reaching a forwarded port on the WAN address are DNATed and masqueraded
+	// (needs a static WAN address).
+	Hairpin *bool `yaml:"hairpin,omitempty"`
 }
 
 // LogDropsConfig defines the rate-limited logging of the connections from the WAN that are dropped.

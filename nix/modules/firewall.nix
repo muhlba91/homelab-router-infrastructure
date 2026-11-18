@@ -88,21 +88,54 @@ let
   service =
     proto: ports: from:
     lib.mapAttrs (_: lib.mkDefault) { inherit proto ports from; };
-  # DNAT rules of router.firewall.forwards.v4/v6 (same shape; `saddr` = ip or ip6).
+  # DNAT rules of router.firewall.forwards.v4/v6 (same shape; `saddr` = ip or ip6): from the
+  # WAN, and with firewall.hairpin from the LAN to the WAN address `wanAddr`.
+  dnatRule =
+    {
+      saddr,
+      iif,
+      daddr ? null,
+    }:
+    f:
+    ''iifname "${iif}" ${lib.optionalString (daddr != null) "${saddr} daddr ${daddr} "}${
+      lib.optionalString (f.from != null) "${saddr} saddr ${nftSet f.from} "
+    }${f.proto} dport ${nftSet (map toString f.ports)} dnat to ${f.to}'';
   dnatRules =
-    saddr:
-    lib.concatMapStringsSep "\n        " (
-      f:
-      ''iifname "${wanIf}" ${
-        lib.optionalString (f.from != null) "${saddr} saddr ${nftSet f.from} "
-      }${f.proto} dport ${nftSet (map toString f.ports)} dnat to ${f.to}''
+    saddr: wanAddr: forwards:
+    lib.concatStringsSep "\n        " (
+      map (dnatRule {
+        inherit saddr;
+        iif = wanIf;
+      }) forwards
+      ++ lib.optionals (cfg.firewall.hairpin && wanAddr != null) (
+        map (dnatRule {
+          inherit saddr;
+          iif = lanIf;
+          daddr = wanAddr;
+        }) forwards
+      )
     );
+  # A hairpinned connection is masqueraded towards the LAN, so the target answers through the
+  # router. Appended to the last rule of the chain: no new line for sites without hairpin.
+  hairpinMasq =
+    saddr: net: forwards:
+    lib.optionalString (
+      cfg.firewall.hairpin && forwards != [ ]
+    ) "\n        oifname \"${lanIf}\" ${saddr} saddr ${net} ct status dnat masquerade";
 in
 {
   assertions = [
     {
       assertion = cfg.firewall.forwards.v6 == [ ] || cfg.nat66.enable;
       message = "router.firewall.forwards.v6 needs router.nat66.enable (a routable LAN needs no DNAT: firewall.extraForwardRules)";
+    }
+    {
+      assertion = !cfg.firewall.hairpin || cfg.firewall.forwards.v4 == [ ] || d.wanAddr4 != null;
+      message = "router.firewall.hairpin needs a static router.wan.v4.address for router.firewall.forwards.v4";
+    }
+    {
+      assertion = !cfg.firewall.hairpin || cfg.firewall.forwards.v6 == [ ] || d.wanAddr6 != null;
+      message = "router.firewall.hairpin needs a static router.wan.v6.address for router.firewall.forwards.v6";
     }
     {
       assertion = !cfg.wan.v4.announce || (cfg.wan.v4.method == "static" && cfg.wan.v4.address != null);
@@ -250,7 +283,7 @@ in
     content = ''
       chain prerouting {
         type nat hook prerouting priority dstnat; policy accept;
-        ${dnatRules "ip" cfg.firewall.forwards.v4}
+        ${dnatRules "ip" d.wanAddr4 cfg.firewall.forwards.v4}
       }
       chain postrouting {
         type nat hook postrouting priority srcnat; policy accept;
@@ -259,7 +292,9 @@ in
           oifname "${wanIf}" ip daddr ${wanNet} masquerade
         ''}
         # Internet-bound only; our other networks (trusted.v4) are routed, not NATed.
-        oifname "${wanIf}" ip saddr ${cfg.lan.v4Net} ip daddr != ${nftSet cfg.trusted.v4} masquerade
+        oifname "${wanIf}" ip saddr ${cfg.lan.v4Net} ip daddr != ${nftSet cfg.trusted.v4} masquerade${
+          hairpinMasq "ip" cfg.lan.v4Net cfg.firewall.forwards.v4
+        }
       }
     '';
   };
@@ -271,7 +306,7 @@ in
     content = ''
       chain prerouting {
         type nat hook prerouting priority dstnat; policy accept;
-        ${dnatRules "ip6" cfg.firewall.forwards.v6}
+        ${dnatRules "ip6" d.wanAddr6 cfg.firewall.forwards.v6}
       }
       chain postrouting {
         type nat hook postrouting priority srcnat; policy accept;
@@ -279,7 +314,9 @@ in
           oifname "${wanIf}" ip6 daddr ${wanNet6} masquerade
         ''}
         ${lib.optionalString cfg.nat66.enable ''
-          oifname "${wanIf}" ip6 saddr ${cfg.lan.v6Supernet} ip6 daddr != ${nftSet cfg.trusted.v6} masquerade
+          oifname "${wanIf}" ip6 saddr ${cfg.lan.v6Supernet} ip6 daddr != ${nftSet cfg.trusted.v6} masquerade${
+            hairpinMasq "ip6" cfg.lan.v6Net cfg.firewall.forwards.v6
+          }
         ''}
       }
     '';

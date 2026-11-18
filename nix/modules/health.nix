@@ -6,6 +6,7 @@
   config,
   lib,
   pkgs,
+  rlib,
   ...
 }:
 let
@@ -31,7 +32,7 @@ in
         ''}
         failed=$(systemctl --failed --no-legend --plain)
         if [ -z "$failed" ]; then echo "ok   failed units: 0"; else echo "$failed"; echo "FAIL failed units"; rc=1; fi
-        for p in kernel initrd kernel-modules; do
+        for p in ${toString rlib.bootFiles}; do
           if [ "$(readlink /run/booted-system/$p)" != "$(readlink /run/current-system/$p)" ]; then
             echo "warn reboot required: the booted $p is not the current one"
             break
