@@ -1,0 +1,147 @@
+# Hardware profile: a dedicated server with two NVMe disks (Hetzner, OVH; BIOS or UEFI). Both
+# disks hold a BIOS boot partition, an ESP and a ZFS partition; the pool `rpool` mirrors the
+# latter. GRUB is installed on both disks for BIOS and for the removable UEFI path of their
+# ESPs, so either disk boots the box under either firmware.
+# Selected by router.hardware.profile (= this file name); hand-written, never generated.
+{ config, lib, ... }:
+let
+  cfg = config.router;
+  arcMax = 4 * 1024 * 1024 * 1024;
+  # The ESPs: the first is /boot, the second /boot-fallback. `disks` is cut to their number so
+  # that the assertion below can report a wrong count.
+  esps = [
+    "/boot"
+    "/boot-fallback"
+  ];
+  disks = lib.take (lib.length esps) cfg.hardware.disks;
+in
+{
+  assertions = [
+    {
+      assertion = lib.length cfg.hardware.disks == 2;
+      message = "router.hardware.disks needs exactly two disks for the server-zfs profile";
+    }
+  ];
+
+  boot.initrd.availableKernelModules = [
+    "xhci_pci"
+    "ahci"
+    "nvme"
+    "usb_storage"
+    "usbhid"
+    "sd_mod"
+  ];
+
+  boot.loader.grub = {
+    enable = true;
+    efiSupport = true;
+    efiInstallAsRemovable = true;
+    configurationLimit = cfg.system.gc.keep;
+    # The targets are the mirroredBoots'; disko's EF02 entries would list the disks again.
+    devices = lib.mkForce [ ];
+    mirroredBoots = lib.zipListsWith (path: device: {
+      inherit path;
+      devices = [ device ];
+    }) esps disks;
+  };
+
+  # ZFS: the host id comes from the host name; the ARC is capped, because the guests need the
+  # memory.
+  networking.hostId = builtins.substring 0 8 (builtins.hashString "sha256" cfg.site.hostname);
+  boot.kernelParams = [ "zfs.zfs_arc_max=${toString arcMax}" ];
+  boot.zfs.forceImportRoot = false;
+  services.zfs = {
+    autoScrub = {
+      enable = true;
+      interval = "monthly";
+    };
+    trim.enable = true;
+  };
+
+  # Reboot 10 s after a kernel panic. The box has no watchdog device: a site on this profile sets
+  # router.system.watchdog = 0s.
+  boot.kernel.sysctl."kernel.panic" = 10;
+
+  hardware.enableRedistributableFirmware = true;
+  hardware.cpu.intel.updateMicrocode = true;
+
+  router.hypervisor.zfsDataset = "rpool/guests";
+
+  disko.devices = {
+    disk = lib.listToAttrs (
+      lib.imap0 (
+        i: device:
+        lib.nameValuePair "nvme${toString i}" {
+          type = "disk";
+          inherit device;
+          content = {
+            type = "gpt";
+            partitions = {
+              boot = {
+                size = "1M";
+                type = "EF02";
+              };
+              ESP = {
+                size = "1G";
+                type = "EF00";
+                content = {
+                  type = "filesystem";
+                  format = "vfat";
+                  mountpoint = lib.elemAt esps i;
+                  mountOptions = [ "umask=0077" ];
+                };
+              };
+              zfs = {
+                size = "100%";
+                content = {
+                  type = "zfs";
+                  pool = "rpool";
+                };
+              };
+            };
+          };
+        }
+      ) disks
+    );
+
+    zpool.rpool = {
+      type = "zpool";
+      mode = "mirror";
+      options.ashift = "12";
+      rootFsOptions = {
+        compression = "lz4";
+        atime = "off";
+        xattr = "sa";
+        acltype = "posixacl";
+        mountpoint = "none";
+      };
+      datasets = {
+        root = {
+          type = "zfs_fs";
+          mountpoint = "/";
+          options.mountpoint = "legacy";
+        };
+        nix = {
+          type = "zfs_fs";
+          mountpoint = "/nix";
+          options.mountpoint = "legacy";
+        };
+        var = {
+          type = "zfs_fs";
+          mountpoint = "/var";
+          options.mountpoint = "legacy";
+        };
+        # The pool behind router.hypervisor.zfsDataset: the quota keeps the guests' zvols off the
+        # host's space, and the ARC caches metadata only (the guests cache their own data).
+        guests = {
+          type = "zfs_fs";
+          options = {
+            mountpoint = "none";
+            primarycache = "metadata";
+            quota = "360G";
+          };
+        };
+      };
+    };
+  };
+}

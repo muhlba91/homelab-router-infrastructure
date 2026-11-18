@@ -41,6 +41,26 @@ func parse(t *testing.T) *site.Config {
 
 func ptr[T any](v T) *T { return &v }
 
+// zfs returns a mutation that turns the site into a server-zfs site with two disks, then applies change.
+func zfs(change func(h *site.HardwareConfig)) func(c *site.Config) {
+	return func(c *site.Config) {
+		c.Hardware.Profile = "server-zfs"
+		c.Hardware.Disk = ""
+		c.Hardware.Disks = zfsDisks()
+		change(c.Hardware)
+	}
+}
+
+// zfsDisks returns two valid install disks.
+func zfsDisks() []string { return []string{"/dev/disk/by-id/a", "/dev/disk/by-id/b"} }
+
+func TestValidateZFSValid(t *testing.T) {
+	c := parse(t)
+	zfs(func(*site.HardwareConfig) {})(c)
+
+	require.NoError(t, c.Validate())
+}
+
 func TestValidateValid(t *testing.T) {
 	require.NoError(t, parse(t).Validate())
 }
@@ -54,7 +74,18 @@ func TestValidate(t *testing.T) {
 		want   string
 	}{
 		"no hardware":     {func(c *site.Config) { c.Hardware = nil }, "hardware"},
-		"no disk":         {func(c *site.Config) { c.Hardware.Disk = "" }, "hardware"},
+		"no disk":         {func(c *site.Config) { c.Hardware.Disk = "" }, "hardware.disk: required"},
+		"no profile":      {func(c *site.Config) { c.Hardware.Profile = "" }, "hardware: profile is required"},
+		"disks on qemu":   {func(c *site.Config) { c.Hardware.Disks = zfsDisks() }, "hardware.disks: only for"},
+		"bad disk char":   {func(c *site.Config) { c.Hardware.Disk = "/dev/a b" }, "hardware.disk:"},
+		"zfs one disk":    {zfs(func(h *site.HardwareConfig) { h.Disks = zfsDisks()[:1] }), "exactly 2"},
+		"zfs three disks": {zfs(func(h *site.HardwareConfig) { h.Disks = append(zfsDisks(), "/dev/c") }), "exactly 2"},
+		"zfs duplicate":   {zfs(func(h *site.HardwareConfig) { h.Disks = []string{"/dev/a", "/dev/a"} }), "disks[1]"},
+		"zfs empty entry": {zfs(func(h *site.HardwareConfig) { h.Disks = []string{"/dev/a", ""} }), "disks[1]"},
+		"zfs with disk":   {zfs(func(h *site.HardwareConfig) { h.Disk = "/dev/sda" }), "hardware.disk: not for"},
+		"zfs bad char":    {zfs(func(h *site.HardwareConfig) { h.Disks = []string{"/dev/a", `/dev/"b`} }), "disks[1]"},
+		"zfs dollar":      {zfs(func(h *site.HardwareConfig) { h.Disks = []string{"/dev/a", "$b"} }), "disks[1]"},
+		"zfs backslash":   {zfs(func(h *site.HardwareConfig) { h.Disks = []string{`\a`, "/dev/b"} }), "disks[0]"},
 		"no network":      {func(c *site.Config) { c.Network = nil }, "network: required"},
 		"no domain":       {func(c *site.Config) { c.Network.Domain = "" }, "network.domain"},
 		"no wan":          {func(c *site.Config) { c.Network.WAN = nil }, "network.wan: required"},

@@ -74,9 +74,12 @@ in
       profile = mkOption {
         type = types.enum hardwareProfiles;
         default = "qemu";
-        description = "Hand-written hardware/boot profile: hardware/<profile>.nix (`qemu`: any x86_64 VM, BIOS or UEFI; `n100`: an Intel N100/N150 mini PC, UEFI).";
+        description = "Hand-written hardware/boot profile: hardware/<profile>.nix (`qemu`: any x86_64 VM, BIOS or UEFI; `n100`: an Intel N100/N150 mini PC, UEFI; `server-zfs`: a BIOS or UEFI server with two NVMe disks in a ZFS mirror).";
       };
-      disk = strD "/dev/sda" "Install disk (disko). A physical box: its `/dev/disk/by-id/` path (USB disks, e.g. a KVM's virtual one, can take `/dev/sda`).";
+      disk = strD "/dev/sda" "Install disk (disko) of the single-disk profiles. A physical box: its `/dev/disk/by-id/` path (USB disks, e.g. a KVM's virtual one, can take `/dev/sda`).";
+      disks =
+        strList [ ]
+          "Install disks (disko) of `server-zfs`: exactly two `/dev/disk/by-id/` paths, the mirror of the pool.";
       kernelParams = strList [ ] "Extra kernel command line parameters (e.g. a serial console).";
       ups = {
         enable = bool false ''

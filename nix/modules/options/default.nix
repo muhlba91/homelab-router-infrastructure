@@ -8,6 +8,7 @@ in
 {
   imports = [
     ./site.nix
+    ./hypervisor.nix
     ./network.nix
     ./firewall.nix
     ./services.nix

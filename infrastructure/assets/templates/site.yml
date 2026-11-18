@@ -12,10 +12,13 @@ deploy:
 
 # required hardware settings
 hardware:
-  # a file in nix/hardware/: qemu (any x86_64 VM, BIOS or UEFI), n100 (Intel N100/N150 mini PC, UEFI)
+  # a file in nix/hardware/: qemu (any x86_64 VM, BIOS or UEFI), n100 (Intel N100/N150 mini PC, UEFI),
+  # server-zfs (dedicated server, two NVMe disks in a ZFS mirror)
   profile: qemu
   # a physical box: its /dev/disk/by-id/ path
   disk: /dev/sda
+  # server-zfs: its two /dev/disk/by-id/ paths instead of disk
+  # disks: [/dev/disk/by-id/nvme-a, /dev/disk/by-id/nvme-b]
   # optional: a UPS on the router (NUT; the password is generated into secrets/nut-password)
   ups:
     enabled: false
@@ -24,6 +27,10 @@ hardware:
     # port: auto
   # optional: extra kernel command line parameters
   # kernelParams: ["console=ttyS0,115200"]
+
+# optional: libvirt/QEMU hypervisor module on the router
+# hypervisor:
+#   enabled: true
 
 # optional system settings
 system:

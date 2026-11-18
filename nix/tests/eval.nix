@@ -5,6 +5,7 @@
 let
   spoke = fixtures.fixture-spoke;
   home = fixtures.fixture-home;
+  server = fixtures.fixture-server;
 
   # Whether a fixture still evaluates with one more module (a failed assertion or a wrong
   # option value throws).
@@ -936,4 +937,235 @@ lib.runTests {
       true
     ];
   };
+
+  # The server-zfs profile: a mirror of the two disks, an ESP on each (/boot and /boot-fallback),
+  # GRUB installed from mirroredBoots only (not from disko's EF02 entries), a capped ARC.
+  testServerZfs =
+    let
+      inherit (server.config) disko boot;
+      disks = disko.devices.disk;
+    in
+    {
+      expr = {
+        devices = lib.mapAttrs (_: d: d.device) disks;
+        partitions = lib.attrNames disks.nvme0.content.partitions;
+        esps = lib.mapAttrs (_: d: d.content.partitions.ESP.content.mountpoint) disks;
+        pool = {
+          inherit (disko.devices.zpool.rpool) mode;
+          datasets = lib.attrNames disko.devices.zpool.rpool.datasets;
+          guests = disko.devices.zpool.rpool.datasets.guests.options;
+        };
+        grub = {
+          inherit (boot.loader.grub) devices;
+          mirrored = map (m: [
+            m.path
+            m.devices
+          ]) boot.loader.grub.mirroredBoots;
+          inherit (boot.loader.grub) efiSupport efiInstallAsRemovable;
+        };
+        hostId = lib.stringLength server.config.networking.hostId;
+        arc = lib.elem "zfs.zfs_arc_max=4294967296" boot.kernelParams;
+        panic = boot.kernel.sysctl."kernel.panic";
+        watchdog = server.config.systemd.settings.Manager ? RuntimeWatchdogSec;
+        zfs = server.config.boot.supportedFilesystems.zfs or false;
+      };
+      expected = {
+        devices = {
+          nvme0 = "/dev/disk/by-id/nvme-EXAMPLE_0001";
+          nvme1 = "/dev/disk/by-id/nvme-EXAMPLE_0002";
+        };
+        partitions = [
+          "ESP"
+          "boot"
+          "zfs"
+        ];
+        esps = {
+          nvme0 = "/boot";
+          nvme1 = "/boot-fallback";
+        };
+        pool = {
+          mode = "mirror";
+          datasets = [
+            "__root" # disko's name for the pool's own dataset (rootFsOptions)
+            "guests"
+            "nix"
+            "root"
+            "var"
+          ];
+          guests = {
+            mountpoint = "none";
+            primarycache = "metadata";
+            quota = "360G";
+          };
+        };
+        grub = {
+          devices = [ ];
+          mirrored = [
+            [
+              "/boot"
+              [ "/dev/disk/by-id/nvme-EXAMPLE_0001" ]
+            ]
+            [
+              "/boot-fallback"
+              [ "/dev/disk/by-id/nvme-EXAMPLE_0002" ]
+            ]
+          ];
+          efiSupport = true;
+          efiInstallAsRemovable = true;
+        };
+        hostId = 8;
+        arc = true;
+        panic = 10;
+        watchdog = false;
+        zfs = true;
+      };
+    };
+  # server-zfs needs exactly two disks; single-disk profiles take none.
+  testServerZfsDisks = {
+    expr = {
+      one = violations server {
+        router.hardware.disks = lib.mkForce [ "/dev/disk/by-id/nvme-EXAMPLE_0001" ];
+      };
+      three = violations server {
+        router.hardware.disks = lib.mkForce [
+          "/dev/disk/by-id/a"
+          "/dev/disk/by-id/b"
+          "/dev/disk/by-id/c"
+        ];
+      };
+      singleDiskProfile = violations spoke { router.hardware.disks = [ "/dev/sdb" ]; };
+    };
+    expected = {
+      one = [ "router.hardware.disks needs exactly two disks for the server-zfs profile" ];
+      three = [ "router.hardware.disks needs exactly two disks for the server-zfs profile" ];
+      singleDiskProfile = [
+        "router.hardware.disks is only used by the server-zfs profile (single-disk profiles: router.hardware.disk)"
+      ];
+    };
+  };
+  # The server fixture's WAN and LAN: on-link routes of both families, the LAN bridge, hairpin
+  # NAT and SSH from the WAN.
+  testServerNetwork =
+    let
+      net = server.config.systemd.network;
+    in
+    {
+      expr = {
+        onLink = map (r: [
+          r.Gateway
+          (r.Table or "main")
+        ]) (lib.filter (r: r ? GatewayOnLink) net.networks."10-wan".routes);
+        bridge = net.netdevs."20-lan".netdevConfig.Kind;
+        hairpin = has ''iifname "lan0" ip daddr 198.51.100.10 tcp dport { 80, 443 } dnat to 10.73.72.2'' (
+          nat4 server
+        );
+        sshFromWan = has ''iifname "wan0" tcp dport { 22 } accept'' (rules server);
+      };
+      expected = {
+        onLink = [
+          [
+            "198.51.100.1"
+            "main"
+          ]
+          [
+            "2001:db8:73:ff::1"
+            "main"
+          ]
+          [
+            "198.51.100.1"
+            200
+          ]
+          [
+            "2001:db8:73:ff::1"
+            200
+          ]
+        ];
+        bridge = "bridge";
+        hairpin = true;
+        sshFromWan = true;
+      };
+    };
+  # The hypervisor module: libvirtd, the user `virt` (allowed to log in), no libvirt networks,
+  # the storage pools only with a ZFS dataset, ordered after the router's services.
+  testHypervisor =
+    let
+      withoutZfs = with' spoke { router.hypervisor.enable = true; };
+      setup = s: s.config.systemd.services.libvirt-setup.script;
+      users = s: s.config.services.openssh.settings.AllowUsers;
+    in
+    {
+      expr = {
+        default = {
+          libvirtd = spoke.config.virtualisation.libvirtd.enable;
+          allowed = users spoke;
+          virt = spoke.config.users.users ? virt;
+        };
+        server = {
+          libvirtd = server.config.virtualisation.libvirtd.enable;
+          onShutdown = server.config.virtualisation.libvirtd.onShutdown;
+          timeout = server.config.virtualisation.libvirtd.shutdownTimeout;
+          allowed = users server;
+          groups = server.config.users.users.virt.extraGroups;
+          keys =
+            server.config.users.users.virt.openssh.authorizedKeys.keys == server.config.router.mgmt.sshKeys;
+          kvm = lib.elem "kvm-intel" server.config.boot.kernelModules;
+          noNetworks = has "net-undefine" (setup server);
+          pools = [
+            (has "pool-define-as guests zfs --source-name rpool/guests" (setup server))
+            (has "pool-define-as iso dir" (setup server))
+          ];
+          after = lib.intersectLists [
+            "frr.service"
+            "netbird-backbone.service"
+            "kea-dhcp4-server.service"
+            "kea-dhcp6-server.service"
+          ] server.config.systemd.services.libvirtd.after;
+          cpuWeight = server.config.systemd.slices.machine.sliceConfig.CPUWeight;
+        };
+        withoutZfs = {
+          allowed = users withoutZfs;
+          pools = has "pool-define-as" (setup withoutZfs);
+          noNetworks = has "net-undefine" (setup withoutZfs);
+        };
+      };
+      expected = {
+        default = {
+          libvirtd = false;
+          allowed = [ "deploy" ];
+          virt = false;
+        };
+        server = {
+          libvirtd = true;
+          onShutdown = "shutdown";
+          timeout = 300;
+          allowed = [
+            "deploy"
+            "virt"
+          ];
+          groups = [ "libvirtd" ];
+          keys = true;
+          kvm = true;
+          noNetworks = true;
+          pools = [
+            true
+            true
+          ];
+          after = [
+            "frr.service"
+            "netbird-backbone.service"
+            "kea-dhcp4-server.service"
+            "kea-dhcp6-server.service"
+          ];
+          cpuWeight = 50;
+        };
+        withoutZfs = {
+          allowed = [
+            "deploy"
+            "virt"
+          ];
+          pools = false;
+          noNetworks = true;
+        };
+      };
+    };
 }

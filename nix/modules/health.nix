@@ -1,7 +1,7 @@
 # `router-health` (./router health, after every deploy): the BGP sessions are established
 # (given a minute: a deploy may restart FRR), no unit has failed; a pending reboot (the
 # booted kernel, initrd or modules are not the current system's) is a warning. Exits 1 on
-# a failure.
+# a failure. With hypervisor.zfsDataset, a pool over 75% full is a warning, an unreadable one a failure.
 {
   config,
   lib,
@@ -11,14 +11,27 @@
 }:
 let
   bgp = config.services.frr.bgpd.enable;
+  inherit (config.router.hypervisor) zfsDataset;
+  # Appended to `rc=0`, so that the script of sites without the pool is unchanged.
+  poolCheck = lib.optionalString (config.router.hypervisor.enable && zfsDataset != null) (
+    let
+      pool = lib.head (lib.splitString "/" zfsDataset);
+    in
+    ''
+
+      cap=$(zpool list -H -o capacity ${pool} 2>/dev/null | tr -d %) || cap=""
+      if [ -z "$cap" ]; then echo "FAIL zfs pool ${pool}: not readable"; rc=1
+      elif [ "$cap" -gt 75 ]; then echo "warn zfs pool ${pool} is $cap% full"
+      else echo "ok   zfs pool ${pool}: $cap% used"; fi''
+  );
 in
 {
   environment.systemPackages = [
     (pkgs.writeShellApplication {
       name = "router-health";
-      runtimeInputs = [ pkgs.jq ];
+      runtimeInputs = [ pkgs.jq ] ++ lib.optional (poolCheck != "") config.boot.zfs.package;
       text = ''
-        rc=0
+        rc=0${poolCheck}
         ${lib.optionalString bgp ''
           up=""; total=""
           for _ in $(seq 12); do
