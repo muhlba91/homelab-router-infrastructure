@@ -76,7 +76,7 @@ findings.
 ## 8. Server (profile `server-zfs`)
 
 ```bash
-./router ssh <site> "sudo zpool status -x; findmnt /boot; findmnt /boot-fallback; ls /boot/EFI/BOOT /boot-fallback/EFI/BOOT"
+./router ssh <site> "sudo zpool status -x; findmnt /boot; findmnt /boot-fallback; sudo ls /boot/EFI/BOOT /boot-fallback/EFI/BOOT"
 ./router ssh <site> "sudo virsh -c qemu:///system net-list --all; sudo virsh -c qemu:///system pool-list; sudo nft list tables | grep -c libvirt"
 virsh -c qemu+ssh://virt@<management address>/system list
 ```

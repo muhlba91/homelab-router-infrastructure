@@ -156,7 +156,8 @@ only) are used.
 
 `./router` without arguments lists the commands: `sites`, `check`, `fmt`, `dump`, `golden` (rewrites the stored dumps
 of the shared fixtures, which a flake check compares), `push-secrets`, `deploy` (with magic rollback; skipped if
-current), `health`, `install` (nixos-anywhere; wipes the disk) and `ssh`, all run from `nix/`.
+current), `health` (failed units, BGP, a hypervisor's ZFS pool), `install` (nixos-anywhere; wipes the disk) and
+`ssh`, all run from `nix/`.
 
 Secrets are never part of the configuration: they are files pushed to `/var/lib/secrets` on the router, where the
 configuration only declares their names, owners and modes.
@@ -203,7 +204,8 @@ IPv6 follows the same host parts inside the site's prefix (`::1` router, `::1:1:
 - `make test` (in `infrastructure/`): the Go tests, including a render of every site file and of the site template
   (as the site `site`) under Pulumi mocks; `RENDER_DIR=<dir>` keeps the rendered files.
 - `./router check` (in `nix/`): the flake checks, see [checks.nix](nix/tests/checks.nix): lint, eval tests on the
-  fixtures, and per site the tools' own checks of its nftables, radvd, Kea and FRR configuration.
+  fixtures, stored dumps of the shared fixtures (`golden-*`; `./router golden` rewrites them after an intended change),
+  and per site the tools' own checks of its nftables, radvd, Kea and FRR configuration.
 - Both together check the whole chain from the site files to the router configuration:
 
 ```bash

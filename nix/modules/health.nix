@@ -24,7 +24,7 @@ let
       if [ -z "$cap" ]; then echo "FAIL zfs pool ${pool}: not readable"; rc=1
       elif [ "$cap" -gt 75 ]; then echo "warn zfs pool ${pool} is $cap% full"
       else echo "ok   zfs pool ${pool}: $cap% used"; fi
-      state=$(zpool list -H -o health ${pool})
+      state=$(zpool list -H -o health ${pool} 2>/dev/null) || state=UNAVAILABLE
       [ "$state" = ONLINE ] || echo "warn zfs pool ${pool} is $state"''
   );
 in

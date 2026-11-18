@@ -17,6 +17,10 @@ in
   adguard = c.services.adguardhome.settings;
   adguardStartPre = map toString c.systemd.services.adguardhome.serviceConfig.ExecStartPre;
   sysctl = c.boot.kernel.sysctl;
+  kernelParams = c.boot.kernelParams;
+  sshd = c.services.openssh.settings;
+  users = l.attrNames c.users.users;
+  units = l.attrNames c.systemd.units;
   secrets = c.router.secrets;
   secretsActivation = c.system.activationScripts.routerSecrets.text or "";
 }

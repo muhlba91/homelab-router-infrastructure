@@ -13,10 +13,10 @@
 #   ./router push-secrets <site>         deliver $OUTPUTS/keys/<site>/secrets/ to the router
 #   ./router deploy <site> [deploy args] push secrets, then deploy-rs (magic rollback); without
 #                                        args, skipped if the router already runs this system
-#   ./router health <site>               failed units, BGP sessions, pending reboot (warning)
+#   ./router health <site>               failed units, BGP sessions, ZFS pool, pending reboot (warning)
 #   ./router install <site> <ip>         first install: nixos-anywhere (+ secrets); kexecs into an
-#                                        installer first, so it runs from a provider rescue system.
-#                                        INSTALL_PHASES=disko,install,reboot: from a NixOS ISO
+#                                        installer first (skipped on a NixOS installer), so it runs
+#                                        from a provider rescue system
 #   ./router ssh <site> [command]        SSH as `deploy` to the site's mgmt address with its key
 #
 # OUTPUTS=<dir> selects the site data (default ../infrastructure/outputs, written by Pulumi);
@@ -123,8 +123,7 @@ case "$cmd" in
     ip=${1:-}; [ -n "$ip" ] || usage
     target "$site"
     export NX_KNOWN_HOSTS="" # the installer's host key is not the router's
-    phases=${INSTALL_PHASES:-kexec,disko,install,reboot}
-    echo "router: first install of '$site' on root@$ip, phases $phases (wipes the target disk)"
+    echo "router: first install of '$site' on root@$ip (wipes the target disk)"
     # nixos-anywhere cannot take --override-input (and re-locks an override that differs
     # from flake.nix), so a temporary copy of the flake points the `sites` input itself at
     # the site data and is installed from. The secrets tree becomes --extra-files (owned by
@@ -132,7 +131,7 @@ case "$cmd" in
     src="$OUTPUTS/keys/$site/secrets"
     script=$(cat <<'EOF'
 set -e
-sites=$1 src=$2 secrets=$3 site=$4 ip=$5 phases=$6
+sites=$1 src=$2 secrets=$3 site=$4 ip=$5
 rm -rf /tmp/fl /tmp/extra && cp -a /work /tmp/fl && cd /tmp/fl
 grep -q 'url = "path:./tests/sites";' flake.nix
 sed -i "s|url = \"path:./tests/sites\";|url = \"path:$sites\";|" flake.nix
@@ -146,11 +145,11 @@ if [ -d "$src" ]; then
 fi
 # The installer's host key is never pinned and changes with the kexec: not checked here.
 # shellcheck disable=SC2086
-nixos-anywhere --flake "/tmp/fl#$site" --build-on remote --phases "$phases" $extra \
+nixos-anywhere --flake "/tmp/fl#$site" --build-on remote $extra \
   --ssh-option UserKnownHostsFile=/dev/null --ssh-option StrictHostKeyChecking=no --target-host "root@$ip"
 EOF
 )
-    ./nx sh -c "$script" sh "$NX_SITES" "$src" "$SECRETS_DIR" "$site" "$ip" "$phases" ;;
+    ./nx sh -c "$script" sh "$NX_SITES" "$src" "$SECRETS_DIR" "$site" "$ip" ;;
   *)
     usage ;;
 esac
