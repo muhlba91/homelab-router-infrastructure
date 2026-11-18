@@ -34,7 +34,7 @@ hardware:
 
 # optional system settings
 system:
-  # 0s = off; needs a watchdog device (Proxmox q35: built in; none, e.g. a cloud VM: 0s)
+  # 0s = off; needs a watchdog device (Proxmox q35: built in; none, e.g. a cloud VM or a server-zfs box: 0s)
   watchdog: 60s
   gc:
     olderThan: 7d
@@ -47,7 +47,7 @@ system:
 # required network settings
 network:
   domain: site.internal.example
-  # managementAddress: 10.46.0.1
+  # managementAddress: 10.74.0.1
 
   # NICs are renamed by MAC: a wrong MAC locks the router out
   wan:
@@ -80,9 +80,9 @@ network:
     # a bridge with the MAC and no physical port, instead of a renamed NIC
     # bridge: true
     v4:
-      address: 10.46.0.1
+      address: 10.74.0.1
       netmask: 16
-      network: 10.46.0.0
+      network: 10.74.0.0
     v6:
       address: "fdaf:460f:42de:1::1"
       netmask: 64
@@ -105,21 +105,21 @@ network:
     #   anchor: "2001:db8:100::1"
 
   loopbacks: []
-    # - address: 10.46.255.1
+    # - address: 10.74.255.1
     #   announce: true
 
 # required DHCP settings
 dhcp:
   v4:
-    start: 10.46.150.1
-    end: 10.46.199.255
+    start: 10.74.150.1
+    end: 10.74.199.255
   v6:
     start: "fdaf:460f:42de:1:e000::1"
     end: "fdaf:460f:42de:1:e000::ffff"
   reservations: []
     # - hostname: host
     #   mac: "02:00:00:00:00:01"
-    #   v4: 10.46.21.11
+    #   v4: 10.74.21.11
     # - hostname: host6
     #   duid: "00:02:00:00:ab:11:00:00:00:00:00:00:00:01"
     #   v6: "fdaf:460f:42de:1:2000::1"
@@ -127,7 +127,7 @@ dhcp:
 # optional DNS settings
 dns:
   conditionalForwards: {}
-    # other.internal.example: 10.164.0.1
+    # other.internal.example: 10.75.0.1
   # values are not escaped for Nix: double a backslash (regex rules: /ads\\d+\\.example/)
   extraRules: []
     # - "@@||example.org^$important"
@@ -142,7 +142,7 @@ firewall:
       #   ports:
       #     - 80
       #     - 443
-      #   to: 10.46.0.20
+      #   to: 10.74.0.20
       #   from:
       #     - 192.0.2.0/24
     v6: []
@@ -189,7 +189,7 @@ observability:
   logging:
     vector:
       enabled: false
-      # address: 10.46.0.10:6000
+      # address: 10.74.0.10:6000
 
 # optional transport settings
 transport:

@@ -144,20 +144,57 @@ them.
 The routers are built from [nix/](nix/), using the site data Pulumi rendered. All commands run from `nix/`; Nix runs in a
 [podman](https://podman.io) container (nothing to install but podman), or directly if `nix` is on the `PATH` (CI).
 Hardware profiles (`nix/hardware/`): `qemu` for every VM router (BIOS or UEFI), `n100` for an Intel N100/N150 mini PC
-(UEFI, systemd-boot; its disk by `/dev/disk/by-id/`). The first install: [docs/proxmox.md](docs/proxmox.md) (a VM) or
-[docs/physical.md](docs/physical.md); the checks after an install or migration: [docs/validation.md](docs/validation.md).
+(UEFI, systemd-boot; its disk by `/dev/disk/by-id/`), `server-zfs` for a dedicated server with two NVMe disks in a ZFS
+mirror that is router and hypervisor. The first install: [docs/proxmox.md](docs/proxmox.md) (a VM),
+[docs/physical.md](docs/physical.md) or [docs/server.md](docs/server.md); the checks after an install or migration:
+[docs/validation.md](docs/validation.md).
 
 The site data is read from `OUTPUTS` (default `../infrastructure/outputs`): `sites/` becomes the flake's `sites` input
 (copied into the Nix store, so nothing but `<site>/vars.nix` is allowed there), `keys/` is only used by the commands that
 connect to a router. Without site data, the fixtures in [nix/tests/sites/](nix/tests/sites/) (documentation addresses
 only) are used.
 
-`./router` without arguments lists the commands: `sites`, `check`, `fmt`, `dump`, `push-secrets`, `deploy` (with
-magic rollback; skipped if current), `health`, `install` (nixos-anywhere; wipes the disk) and `ssh`, all run from
-`nix/`.
+`./router` without arguments lists the commands: `sites`, `check`, `fmt`, `dump`, `golden` (rewrites the stored dumps
+of the shared fixtures, which a flake check compares), `push-secrets`, `deploy` (with magic rollback; skipped if
+current), `health`, `install` (nixos-anywhere; wipes the disk) and `ssh`, all run from `nix/`.
 
 Secrets are never part of the configuration: they are files pushed to `/var/lib/secrets` on the router, where the
 configuration only declares their names, owners and modes.
+
+---
+
+## Addressing
+
+IPv4 addresses are allocated in blocks of ten /16s inside `10.0.0.0/8`. A site owns a block, and its LAN is the
+block's first /16. New sites take the next free block. The Hetzner and OVH LANs move to their blocks when the routers
+are reinstalled.
+
+| Block | Purpose | LAN |
+| --- | --- | --- |
+| `10.0`-`10.9` | `vie` | `10.0.0.0/16` |
+| `10.10`-`10.19` | Spare | |
+| `10.20`-`10.29` | Cloud and core | `10.21.0.0/16` core network |
+| `10.30`-`10.39` | Next server site | |
+| `10.40`-`10.49` | Hetzner | `10.40.0.0/16` |
+| `10.50`-`10.59` | OVH | `10.50.0.0/16` |
+| `10.60`-`10.69` | Lab and test | `10.60.0.0/16` |
+| `10.70`-`10.99` | Spare (examples in templates and fixtures) | |
+| `10.100`-`10.199` | Kubernetes services and load balancer pools | |
+| `10.244`-`10.249` | Kubernetes pod CIDRs | |
+| `10.250`-`10.255` | Overlay and mesh (NetBird, client NAT) | |
+
+The host part of the LAN is the same on every site:
+
+| Host part | Use |
+| --- | --- |
+| `.0.1` | Router |
+| `.50.x` | Kubernetes nodes |
+| `.60.x` | Dev hosts |
+| `.70.1`-`.79.255` | Cilium L2 load balancer pool |
+| `.150.1`-`.199.255` | DHCPv4 pool |
+
+IPv6 follows the same host parts inside the site's prefix (`::1` router, `::1:1:1` node, `::3:x:y` load balancer,
+`::60:1` dev host).
 
 ---
 
@@ -187,7 +224,7 @@ when enabled. The source of truth is [firewall.nix](nix/modules/options/firewall
 
 | Port | Protocol | From | Function |
 | --- | --- | --- | --- |
-| 22 | TCP | lan, trusted | SSH (keys only) |
+| 22 | TCP | lan, trusted (wan: per site, set on the servers) | SSH (keys only) |
 | 53 | TCP, UDP | lan, mesh, trusted | DNS (AdGuard Home) |
 | 67, 547 | UDP | lan | DHCPv4, DHCPv6 (Kea) |
 | 123 | UDP | lan | NTP (chrony) |
