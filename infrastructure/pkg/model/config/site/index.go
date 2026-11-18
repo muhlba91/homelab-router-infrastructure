@@ -49,6 +49,8 @@ type Config struct {
 	Observability *ObservabilityConfig `yaml:"observability,omitempty"`
 	// Transport is the transport configuration of the site.
 	Transport *TransportConfig `yaml:"transport,omitempty"`
+	// Hypervisor is the libvirt/QEMU hypervisor module on the router.
+	Hypervisor *HypervisorConfig `yaml:"hypervisor,omitempty"`
 	// BGP is the BGP configuration of the site; unset: no BGP section is rendered.
 	BGP *BGPConfig `yaml:"bgp"`
 }

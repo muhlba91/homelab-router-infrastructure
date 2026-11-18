@@ -4,8 +4,10 @@ package site
 type HardwareConfig struct {
 	// Profile is the hardware profile: a file in nix/hardware/ (e.g. qemu).
 	Profile string `yaml:"profile"`
-	// Disk is the install disk of the router (wiped by the first install).
-	Disk string `yaml:"disk"`
+	// Disk is the install disk of single-disk profiles (wiped by the first install).
+	Disk string `yaml:"disk,omitempty"`
+	// Disks are the install disks of the server-zfs profile (wiped by the first install).
+	Disks []string `yaml:"disks,omitempty"`
 	// UPS is the UPS attached to the router (NUT).
 	UPS *UPSConfig `yaml:"ups,omitempty"`
 	// KernelParams are extra kernel command line parameters.

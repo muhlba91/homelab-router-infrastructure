@@ -12,6 +12,10 @@ in
   system.stateVersion = "26.05";
   assertions = [
     {
+      assertion = cfg.hardware.disks == [ ] || cfg.hardware.profile == "server-zfs";
+      message = "router.hardware.disks is only used by the server-zfs profile (single-disk profiles: router.hardware.disk)";
+    }
+    {
       assertion = !cfg.meta.deployable || cfg.mgmt.sshKeys != [ ];
       message = "router.mgmt.sshKeys is empty: deploy-rs (user `deploy`) could not log in after this deploy";
     }

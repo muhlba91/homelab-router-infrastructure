@@ -16,6 +16,9 @@ const (
 	// maxPrefixV4 and maxPrefixV6 are the longest prefix lengths of the address families.
 	maxPrefixV4 = 32
 	maxPrefixV6 = 128
+	// profileServerZFS is the hardware profile with two install disks; zfsDisks is their number.
+	profileServerZFS = "server-zfs"
+	zfsDisks         = 2
 )
 
 // Validate checks what the vars.nix template relies on: the required sections and fields, the enumerated values and
@@ -28,8 +31,8 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if c.Hardware == nil || c.Hardware.Profile == "" || c.Hardware.Disk == "" {
-		add(errors.New("hardware: profile and disk are required"))
+	if c.Hardware == nil || c.Hardware.Profile == "" {
+		add(errors.New("hardware: profile is required"))
 	} else {
 		errs = append(errs, c.Hardware.validate()...)
 	}
@@ -57,20 +60,61 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// validate checks the hardware section: kernel parameters are rendered into a Nix string, so they must not hold
-// characters that end or interpolate it.
+// validate checks the hardware section: the disks follow the profile, and disks and kernel parameters are rendered
+// into a Nix string, so they must not hold characters that end or interpolate it.
 func (h *HardwareConfig) validate() []error {
 	var errs []error
-	for i, p := range h.KernelParams {
-		if p == "" || strings.ContainsAny(p, "\"\\$ \t\n") {
-			errs = append(
-				errs,
-				fmt.Errorf("hardware.kernelParams[%d]: %q is empty or holds a quote, backslash, $ or whitespace", i, p),
-			)
+	if h.Profile == profileServerZFS {
+		errs = append(errs, h.validateZFSDisks()...)
+	} else {
+		if h.Disk == "" {
+			errs = append(errs, fmt.Errorf("hardware.disk: required for the %q profile", h.Profile))
 		}
+		if len(h.Disks) > 0 {
+			errs = append(errs, fmt.Errorf("hardware.disks: only for the %q profile", profileServerZFS))
+		}
+	}
+	if h.Disk != "" {
+		errs = append(errs, validateNixString("hardware.disk", h.Disk)...)
+	}
+	for i, p := range h.KernelParams {
+		errs = append(errs, validateNixString(fmt.Sprintf("hardware.kernelParams[%d]", i), p)...)
 	}
 
 	return errs
+}
+
+// validateZFSDisks checks the disks of the server-zfs profile: exactly two distinct ones, and no single disk.
+func (h *HardwareConfig) validateZFSDisks() []error {
+	var errs []error
+	if h.Disk != "" {
+		errs = append(errs, fmt.Errorf("hardware.disk: not for the %q profile, use hardware.disks", profileServerZFS))
+	}
+	if len(h.Disks) != zfsDisks {
+		errs = append(errs, fmt.Errorf("hardware.disks: exactly %d are required, got %d", zfsDisks, len(h.Disks)))
+	}
+	seen := map[string]bool{}
+	for i, d := range h.Disks {
+		errs = append(errs, validateNixString(fmt.Sprintf("hardware.disks[%d]", i), d)...)
+		if d != "" && seen[d] {
+			errs = append(errs, fmt.Errorf("hardware.disks[%d]: %q is listed twice", i, d))
+		}
+		seen[d] = true
+	}
+
+	return errs
+}
+
+// validateNixString checks that a value can be rendered into a Nix string: it is not empty and holds no quote,
+// backslash, $ or whitespace.
+// field: The path of the field, for the errors.
+// value: The value to check.
+func validateNixString(field, value string) []error {
+	if value == "" || strings.ContainsAny(value, "\"\\$ \t\n") {
+		return []error{fmt.Errorf("%s: %q is empty or holds a quote, backslash, $ or whitespace", field, value)}
+	}
+
+	return nil
 }
 
 // validate checks the network section.

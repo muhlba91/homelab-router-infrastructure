@@ -8,6 +8,7 @@
     ./secrets.nix
     ./base.nix
     ./ssh.nix
+    ./hypervisor.nix
     ./nix.nix
     ./auto-reboot.nix
     ./networking.nix

@@ -68,6 +68,16 @@ dhcp:
   v6: {start: "fd00::10", end: "fd00::20"}
 `
 
+// zfsSiteFile returns siteFile as a server-zfs site with two disks and the hypervisor.
+func zfsSiteFile() string {
+	return strings.Replace(
+		siteFile,
+		"hardware: {profile: qemu, disk: /dev/sda}\n",
+		"hardware: {profile: server-zfs, disks: [/dev/disk/by-id/a, /dev/disk/by-id/b]}\nhypervisor: {enabled: true}\n",
+		1,
+	)
+}
+
 // renderTestVars renders the minimal site in a directory holding a copy of the assets (the template path is
 // relative).
 func renderTestVars(t *testing.T, sshKeys []string, hostKey string) string {
@@ -139,4 +149,24 @@ func TestRenderVarsWithoutOptionalSettings(t *testing.T) {
 	for _, key := range []string{"onLink", "bridge", "hairpin", "autoReboot", "kernelParams"} {
 		assert.NotContains(t, vars, key)
 	}
+}
+
+// TestRenderVarsServerZFS renders the disks and the hypervisor of a server-zfs site, and no single disk.
+func TestRenderVarsServerZFS(t *testing.T) {
+	vars := renderSiteVars(t, zfsSiteFile(), nil, "")
+
+	assert.Contains(t, vars, "disks = [")
+	assert.Contains(t, vars, `"/dev/disk/by-id/a"`)
+	assert.Contains(t, vars, `"/dev/disk/by-id/b"`)
+	assert.Contains(t, vars, "hypervisor.enable = true;")
+	assert.NotContains(t, vars, "disk = ")
+}
+
+// TestRenderVarsWithoutZFSSettings renders neither disks nor hypervisor for a single-disk site.
+func TestRenderVarsWithoutZFSSettings(t *testing.T) {
+	vars := renderTestVars(t, nil, "")
+
+	assert.Contains(t, vars, `disk = "/dev/sda";`)
+	assert.NotContains(t, vars, "disks")
+	assert.NotContains(t, vars, "hypervisor")
 }

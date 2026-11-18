@@ -1,5 +1,5 @@
-# SSH: key-only login for the deploy user, with the host key optionally pinned
-# (router.mgmt.hostKey).
+# SSH: key-only login for the deploy user (and `virt` with router.hypervisor.enable), with the
+# host key optionally pinned (router.mgmt.hostKey).
 {
   config,
   lib,
@@ -45,7 +45,10 @@ in
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
-      AllowUsers = [ config.users.users.deploy.name ];
+      AllowUsers = [
+        config.users.users.deploy.name
+      ]
+      ++ lib.optional cfg.hypervisor.enable config.users.users.virt.name;
     };
   };
 }

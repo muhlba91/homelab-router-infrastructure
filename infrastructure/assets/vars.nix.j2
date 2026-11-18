@@ -70,7 +70,12 @@ Conventions:
 
     hardware = {
       profile = "{{ .Router.Hardware.Profile }}";
-      disk = "{{ .Router.Hardware.Disk }}";
+      {{- with .Router.Hardware.Disk }}
+      disk = "{{ . }}";
+      {{- end }}
+      {{- with .Router.Hardware.Disks }}
+      disks = [ {{ range . }}"{{ . }}" {{ end }}];
+      {{- end }}
       {{- with .Router.Hardware.UPS }}
       {{- with .Enabled }}
       ups.enable = {{ . }};
@@ -322,6 +327,12 @@ Conventions:
     security.crowdsec.console.enable = {{ . }};
     {{- end }}
     {{- end }}
+    {{- end }}
+    {{- end }}
+
+    {{- with .Router.Hypervisor }}
+    {{- with .Enabled }}
+    hypervisor.enable = {{ . }};
     {{- end }}
     {{- end }}
 
