@@ -950,6 +950,10 @@ lib.runTests {
         devices = lib.mapAttrs (_: d: d.device) disks;
         partitions = lib.attrNames disks.nvme0.content.partitions;
         esps = lib.mapAttrs (_: d: d.content.partitions.ESP.content.mountpoint) disks;
+        # a missing disk must not stop the boot (emergency mode)
+        espOptional = lib.mapAttrs (
+          _: d: lib.elem "nofail" d.content.partitions.ESP.content.mountOptions
+        ) disks;
         pool = {
           inherit (disko.devices.zpool.rpool) mode;
           datasets = lib.attrNames disko.devices.zpool.rpool.datasets;
@@ -982,6 +986,10 @@ lib.runTests {
         esps = {
           nvme0 = "/boot";
           nvme1 = "/boot-fallback";
+        };
+        espOptional = {
+          nvme0 = true;
+          nvme1 = true;
         };
         pool = {
           mode = "mirror";
