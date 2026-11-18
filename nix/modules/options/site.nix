@@ -97,7 +97,7 @@ in
       watchdog = typedD (types.strMatching "[0-9]+[smh]") "60s" ''
         Hardware watchdog timeout (`<n>s`, `<n>m`, `<n>h`; `0s` = off): systemd pets the watchdog
         device, and if the system hangs for this long, the hardware resets it. Needs a watchdog
-        device (a Proxmox VM: q35 has one built in; without one, e.g. a cloud VM: `0s`).
+        device (a Proxmox VM: q35 has one built in; without one, e.g. a cloud VM or a `server-zfs` box: `0s`).
       '';
       autoReboot = {
         enable = bool false ''

@@ -2,7 +2,7 @@
 
 Run after a first install, a migration or a risky change, from `nix/` (site data as for `./router deploy`). Each check
 shows what a healthy router returns. Placeholders: `<site>`, `<LAN_V4>` (the site's LAN address), `<REMOTE>` (a LAN
-address of another site), `<PUBLIC_IP>`.
+address of another site), `<PUBLIC_IP>`, `<management address>` (the site's `mgmt.address`).
 
 ## 1. Health
 
@@ -72,3 +72,17 @@ A full stop and start of the VM (it also applies changed VM hardware), a power c
 
 Keep the rollback of a migration (VM snapshot or the old box) until the router has run for a while without
 findings.
+
+## 8. Server (profile `server-zfs`)
+
+```bash
+./router ssh <site> "sudo zpool status -x; findmnt /boot; findmnt /boot-fallback; ls /boot/EFI/BOOT /boot-fallback/EFI/BOOT"
+./router ssh <site> "sudo virsh -c qemu:///system net-list --all; sudo virsh -c qemu:///system pool-list; sudo nft list tables | grep -c libvirt"
+virsh -c qemu+ssh://virt@<management address>/system list
+```
+
+- `all pools are healthy`; both ESPs are mounted and hold `EFI/BOOT/BOOTX64.EFI`.
+- No libvirt networks, the pools `guests` and `iso` are active, `nft` lists no libvirt tables (`0`).
+- `virsh` over SSH from the workstation answers.
+- Boot from each disk alone (IPMI or the KVM console: boot order, or a disk removed): the box boots, the pool is
+  `DEGRADED` and `./router health` warns.

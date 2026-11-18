@@ -1,7 +1,8 @@
-# Proxmox host for a router VM
+# Router VM on a Proxmox host (profile `qemu`)
 
 A server with a single public IPv4 address (and optionally IPv6) runs Proxmox; the router is a VM behind it and the
-edge firewall of the site. The host forwards everything except its own SSH (22) and web UI (8006) to the router.
+edge firewall of the site. The host forwards everything except its own SSH (22) and web UI (8006) to the router. A
+server that runs the router itself: [server.md](server.md).
 
 | Bridge | Ports | Host address | Purpose |
 | --- | --- | --- | --- |
@@ -19,8 +20,8 @@ Set these in the host's shell for the commands below (example values):
 
 ```bash
 export PUBLIC_IP=203.0.113.10                # the host's public IPv4 address (on vmbr0)
-export TRANSFER_HOST=10.255.255.0            # transfer net /31: host side
-export TRANSFER_ROUTER=10.255.255.1          #                   router side (the site's network.wan.v4.address)
+export TRANSFER_HOST=10.76.255.0            # transfer net /31: host side
+export TRANSFER_ROUTER=10.76.255.1          #                   router side (the site's network.wan.v4.address)
 export TRANSFER6_HOST=fd12:3456:789a::       # optional, IPv6 transfer net /127: host side
 export TRANSFER6_ROUTER=fd12:3456:789a::1    #                                  router side (network.wan.v6.address)
 export ROUTER_VMID=100
