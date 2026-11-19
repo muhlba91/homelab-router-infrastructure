@@ -204,7 +204,7 @@ dhcp:
 # optional DNS settings
 dns:
   conditionalForwards:
-    bhs.ovh.internal.muehlbachler.io: 10.51.0.1
+    bhs.ovh.internal.muehlbachler.io: 10.50.0.1
     fra.hetzner.internal.muehlbachler.io: 10.100.0.1
 
 # optional firewall settings
