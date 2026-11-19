@@ -78,7 +78,7 @@ findings.
 ```bash
 ./router ssh <site> "sudo zpool status -x; findmnt /boot; findmnt /boot-fallback; sudo ls /boot/EFI/BOOT /boot-fallback/EFI/BOOT"
 ./router ssh <site> "sudo virsh -c qemu:///system net-list --all; sudo virsh -c qemu:///system pool-list; sudo nft list tables | grep -c libvirt"
-virsh -c qemu+ssh://virt@<management address>/system list
+./router virsh <site> list
 ```
 
 - `all pools are healthy`; both ESPs are mounted and hold `EFI/BOOT/BOOTX64.EFI`.

@@ -24,6 +24,10 @@ let
     );
   with' = system: module: system.extendModules { modules = [ module ]; };
   domain = spec: import ../libvirt/domain.nix { inherit lib spec; };
+  healthScript =
+    system:
+    (lib.findFirst (p: (p.name or "") == "router-health") null system.config.environment.systemPackages)
+    .text;
   vm = import ./libvirt/fixture.nix;
   rules = s: s.config.networking.nftables.tables.router.content;
   nat4 = s: s.config.networking.nftables.tables.nat4.content;
@@ -1230,6 +1234,20 @@ lib.runTests {
         noImage = true;
       };
     };
+
+  # The pool check of `router-health` exists on server-zfs sites only.
+  testHealthPoolCheck = {
+    expr = map (s: has "zpool list -H -o capacity rpool" (healthScript s)) [
+      server
+      home
+      spoke
+    ];
+    expected = [
+      true
+      false
+      false
+    ];
+  };
 
   testLibvirtDomainInvalid =
     let

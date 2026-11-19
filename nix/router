@@ -17,6 +17,7 @@
 #   ./router deploy <site> [deploy args] push secrets, then deploy-rs (magic rollback); without
 #                                        args, skipped if the router already runs this system
 #   ./router health <site>               failed units, BGP sessions, ZFS pool, pending reboot (warning)
+#   ./router virsh <site> [args]         virsh on the site's host, as the user `virt` (needs no local install)
 #   ./router install <site> <ip>         first install: nixos-anywhere (+ secrets); kexecs into an
 #                                        installer first (skipped on a NixOS installer), so it runs
 #                                        from a provider rescue system
@@ -111,13 +112,16 @@ case "$cmd" in
       ev --raw ".#fixtureGolden.\"$f\"" | ./nx jq -S . > "tests/golden/$f.json"
     done
     ev --raw .#fixtureLibvirt > tests/golden/libvirt-fixture.xml ;;
+  virsh)
+    target "$site"
+    exec ./nx virsh -c "qemu+ssh://virt@$MGMT/system" "$@" ;;
   libvirt-render)
     spec=$site; [ -n "$spec" ] || usage
     info=$(libvirt_info "$spec")
     printf '%s' "$info" | ./nx jq -r .xml ;;
   libvirt-deploy)
-    target "$site"
     [ -n "${1:-}" ] || usage
+    target "$site"
     info=$(libvirt_info "$1")
     ./nx sh libvirt/apply.sh "qemu+ssh://virt@$MGMT/system" "$info" ;;
   dump)

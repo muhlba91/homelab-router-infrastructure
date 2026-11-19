@@ -36,13 +36,31 @@ old system).
 
 ## Install from the provider's rescue system
 
-1. In the rescue system, clear the old metadata so that nothing is active afterwards (`lsblk`):
-   `mdadm --stop --scan`, `vgchange -an`, `zpool labelclear -f <old ZFS partitions>`, `wipefs -a` on all partitions and
-   both disks.
-2. Put the site's deploy public key into root's `authorized_keys` (`ssh-keygen -y -f
-   ../infrastructure/outputs/keys/<site>/deploy-key` prints it).
-3. On the workstation (in `nix/`): `./router install <site> <ip>`. It kexecs into an installer in RAM (the rescue
-   system needs internet), installs and reboots (about 10 minutes). On a NixOS installer (an ISO) it skips the kexec.
+1. In the rescue system, clear the old metadata so that nothing is active afterwards:
+
+   ```bash
+   mdadm --stop --scan
+   vgchange -an
+   zpool labelclear -f <old ZFS partitions>
+   wipefs -a <all partitions and both disks>
+   lsblk   # nothing may be active
+   ```
+
+2. Put the site's deploy public key into root's `authorized_keys` in the rescue system:
+
+   ```bash
+   # on the workstation: append the public key to root's authorized_keys on the rescue system
+   ssh-keygen -y -f ../infrastructure/outputs/keys/<site>/deploy-key | ssh root@<ip> 'cat >> ~/.ssh/authorized_keys'
+   ```
+
+3. On the workstation (in `nix/`), install:
+
+   ```bash
+   ./router install <site> <ip>
+   ```
+
+   It kexecs into an installer in RAM (the rescue system needs internet), installs and reboots (about 10 minutes). On
+   a NixOS installer (an ISO) it skips the kexec.
 4. If the installer's address differs after the kexec (a DHCP client id that the provider does not know), run the
    command again with the new address.
 
@@ -59,8 +77,7 @@ fails in `grub-install` (it installs GRUB on both disks) and rolls back: replace
 ## Guests
 
 A guest repository keeps one spec per VM; `./router libvirt-deploy <site> <spec>` deploys it ([libvirt.md](libvirt.md)).
-`virsh` works over SSH as the user `virt` (the keys of `deploy`), e.g.
-`virsh -c qemu+ssh://virt@<management address>/system list`.
+`./router virsh <site> <args>` runs `virsh` on the host as the user `virt` (the keys of `deploy`).
 
 - Disks: zvols in the pool `guests` (`rpool/guests`, quota 360 GiB; the ARC caches metadata only), created sparse (the
   volblocksize is the OpenZFS default of 16K).
