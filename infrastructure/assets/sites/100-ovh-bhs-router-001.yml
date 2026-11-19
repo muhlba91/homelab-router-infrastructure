@@ -5,42 +5,54 @@ enabled: true
 
 # optional deploy settings
 deploy:
-  automated: true
+  automated: false
 
 # required hardware settings
 hardware:
-  profile: qemu
-  disk: /dev/sda
+  profile: server-zfs
+  disks:
+    - /dev/disk/by-id/nvme-SAMSUNG_MZVL2512HCJQ-00B07_S63CNX0TC11152
+    - /dev/disk/by-id/nvme-SAMSUNG_MZVL2512HCJQ-00B07_S63CNX0TB24402
+  kernelParams: ["console=tty0", "console=ttyS1,115200n8"]
+
+hypervisor:
+  enabled: true
+
+system:
+  watchdog: 0s
+  autoReboot:
+    enabled: true
 
 # required network settings
 network:
   domain: bhs.ovh.internal.muehlbachler.io
 
-  # transfer net to the Proxmox host, which DNATs all public traffic (but its SSH/UI) to us
   wan:
-    mac: "bc:24:11:5e:a0:fc"
+    mac: "0c:c4:7a:95:f9:be"
     interface: wan0
     v4:
       method: static
-      address: 10.50.0.1
-      netmask: 31
-      gateway: 10.50.0.0
-      # the Proxmox host's management, reachable from the other sites
-      announce: true
+      address: 149.56.26.87
+      netmask: 24
+      gateway: 149.56.26.254
+      announce: false
     v6:
       method: static
-      address: "fd80:8a2:fd5a::1"
-      netmask: 127
-      gateway: "fd80:8a2:fd5a::"
-      announce: true
+      address: "2607:5300:61:b57::1"
+      netmask: 128
+      # outside the prefix: on-link
+      gateway: "2607:5300:61:bff:ff:ff:ff:ff"
+      onLink: true
+      announce: false
 
   lan:
     mac: "bc:24:11:a7:8b:3e"
     interface: lan0
+    bridge: true
     v4:
-      address: 10.51.0.1
+      address: 10.50.0.1
       netmask: 16
-      network: 10.51.0.0
+      network: 10.50.0.0
     v6:
       address: "fd9a:7707:457d::1"
       netmask: 48
@@ -54,8 +66,7 @@ network:
     v6:
       - "fc00::/7"
       - "2001:678:dc0::/48"
-    # the WAN is the transfer net to the Proxmox host
-    wan: true
+    wan: false
 
   additionalRoutableNetworks:
     - prefix: "2001:678:dc0:200::/56"
@@ -64,8 +75,8 @@ network:
 # required DHCP settings
 dhcp:
   v4:
-    start: 10.51.150.1
-    end: 10.51.199.255
+    start: 10.50.150.1
+    end: 10.50.199.255
   v6:
     start: "fd9a:7707:457d:1::1"
     end: "fd9a:7707:457d:1::ffff"
@@ -75,6 +86,15 @@ dns:
   conditionalForwards:
     vie.internal.muehlbachler.io: 10.0.0.1
     fra.hetzner.internal.muehlbachler.io: 10.100.0.1
+
+# optional firewall settings
+firewall:
+  services:
+    ssh:
+      from:
+        - lan
+        - trusted
+        - wan
 
 # optional security settings
 security:
