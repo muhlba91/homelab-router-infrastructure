@@ -167,8 +167,8 @@ configuration only declares their names, owners and modes.
 ## Addressing
 
 IPv4 addresses are allocated in blocks of ten /16s inside `10.0.0.0/8`. A site owns a block, and its LAN is the
-block's first /16. New sites take the next free block. The Hetzner and OVH LANs move to their blocks when the routers
-are reinstalled.
+block's first /16. New sites take the next free block. The Hetzner LAN moves to its block when the router is
+reinstalled.
 
 | Block | Purpose | LAN |
 | --- | --- | --- |
