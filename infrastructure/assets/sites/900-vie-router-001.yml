@@ -17,6 +17,9 @@ hardware:
     enabled: true
     name: tech-hub
 
+hypervisor:
+  enabled: true
+
 # required network settings
 network:
   domain: vie.internal.muehlbachler.io
