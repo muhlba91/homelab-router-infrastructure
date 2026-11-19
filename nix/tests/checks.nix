@@ -1,19 +1,5 @@
-# Flake checks (`nix flake check`, ./router check), offline and without capabilities, with
-# the tools of the checking system (the configurations are only evaluated, never built):
-#   lint          nixfmt (same as `nix fmt`), deadnix (unused code), statix (statix.toml),
-#                 shellcheck (router, nx, secrets-sync.sh, ssh-setup.sh, libvirt/apply.sh), SECRETS_DIR of ./router
-#                 equal to the one of modules/secrets.nix
-#   deploy-schema the deploy-rs nodes against deploy-rs' schema (its own check would build
-#                 every system: the profile paths are store paths of the routers)
-#   site-<name>   the site evaluates; its nftables ruleset passes `nft --check` inside a
-#                 user-space kernel (LKL, as the NixOS build-time check does), radvd -c,
-#                 kea-dhcp4/6 -t (without interface names: the LAN NIC does not exist here),
-#                 vtysh -C (FRR itself only logs a bad line)
-#   eval          tests/eval.nix on the fixtures (lib.runTests; prints the failing tests)
-#   golden-<name> the dump of a shared fixture against tests/golden/<name>.json (tests/golden.nix);
-#                 fails when a change alters it (intended: ./router golden)
-#   golden-libvirt-fixture  the domain XML of tests/libvirt/fixture.nix against tests/golden/libvirt-fixture.xml
-#   libvirt-template        libvirt/template.yml is valid YAML
+# Flake checks (`nix flake check`, ./router check): offline, with the tools of the checking system;
+# the configurations are only evaluated, never built. The checks are listed above the attribute set.
 {
   pkgs,
   lib,
@@ -100,6 +86,21 @@ let
       touch $out
     '';
 in
+# The checks:
+#   lint          nixfmt (same as `nix fmt`), deadnix (unused code), statix (statix.toml),
+#                 shellcheck (router, nx, secrets-sync.sh, ssh-setup.sh, libvirt/apply.sh), SECRETS_DIR of ./router
+#                 equal to the one of modules/secrets.nix
+#   deploy-schema the deploy-rs nodes against deploy-rs' schema (its own check would build
+#                 every system: the profile paths are store paths of the routers)
+#   site-<name>   the site evaluates; its nftables ruleset passes `nft --check` inside a
+#                 user-space kernel (LKL, as the NixOS build-time check does), radvd -c,
+#                 kea-dhcp4/6 -t (without interface names: the LAN NIC does not exist here),
+#                 vtysh -C (FRR itself only logs a bad line)
+#   eval          tests/eval.nix on the fixtures (lib.runTests; prints the failing tests)
+#   golden-<name> the dump of a shared fixture against tests/golden/<name>.json (tests/golden.nix);
+#                 fails when a change alters it (intended: ./router golden)
+#   golden-libvirt-fixture  the domain XML of tests/libvirt/fixture.nix against tests/golden/libvirt-fixture.xml
+#   libvirt-template        libvirt/template.yml is valid YAML
 {
   golden-libvirt-fixture = pkgs.runCommand "check-golden-libvirt-fixture" { } ''
     diff -u ${./golden/libvirt-fixture.xml} ${pkgs.writeText "libvirt-fixture.xml" libvirtFixtureXml} \

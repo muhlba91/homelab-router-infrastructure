@@ -11,6 +11,9 @@ like `./router deploy`.
 
 # create what is missing on the site's host, define the domain, enable autostart, start it
 ./router libvirt-deploy <site> <spec>
+
+# virsh on the site's host (as the user `virt`; runs in the container of ./nx, nothing to install)
+./router virsh <site> list --all
 ```
 
 `libvirt-deploy` is idempotent and deletes nothing:
@@ -26,14 +29,23 @@ A VM is a q35 machine with OVMF (Secure Boot off), fixed memory, the host's CPU 
 the spec on the bridge `lan0`. The disks are virtio-scsi (`cache=none`, `io=native`, `discard=unmap`), seen as `sda`,
 `sdb`, ... and as `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi0`, `...-drive-scsi1`, ... The image is a SATA
 CD-ROM (libvirt target `sdz`) with boot order 2, after the first disk. The console is VNC on the host's `127.0.0.1`;
-tunnel it over SSH (`virsh vncdisplay <name>` gives the port).
+tunnel it over SSH (`./router virsh <site> vncdisplay <name>` gives the display number).
 
 After the install, eject the image and remove `iso` from the spec; the next deploy then drops the CD-ROM:
 
 ```bash
 # eject the image from the running VM and from its definition
-virsh -c qemu+ssh://virt@<management address>/system change-media <name> sdz --eject --live --config
+./router virsh <site> change-media <name> sdz --eject --live --config
 ```
 
-To grow a disk, run `virsh vol-resize`. To remove a VM, run `virsh destroy <name>`, `virsh undefine --nvram <name>` and
-`virsh vol-delete` for each volume.
+Disks are never resized or removed by the commands above:
+
+```bash
+# grow a disk (the VM sees the new size after a reboot)
+./router virsh <site> vol-resize --pool guests <name>-disk<N> <new size, for example 80G>
+
+# remove a VM: stop it, drop its definition and NVRAM, delete each disk
+./router virsh <site> destroy <name>
+./router virsh <site> undefine --nvram <name>
+./router virsh <site> vol-delete --pool guests <name>-disk<N>
+```

@@ -9,7 +9,8 @@ in
       libvirt/QEMU on the router. The guests belong to their own repositories (`virsh` over
       `qemu+ssh` as the user `virt`, same keys as `deploy`); the router provides libvirtd, that
       user and, with `zfsDataset`, the storage pools. libvirt manages no networks: guests attach
-      to the LAN bridge (`lan.bridge`).
+      to the LAN bridge (`lan.bridge`). Without pools and bridge (a router that is not a
+      server-zfs box) libvirtd only runs: VMs need a server-zfs site.
     '';
     zfsDataset = nullable lib.types.str ''
       ZFS dataset for the guests' disks (zvols): libvirt storage pool `guests`, next to the

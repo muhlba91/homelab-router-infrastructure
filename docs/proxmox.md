@@ -20,8 +20,8 @@ Set these in the host's shell for the commands below (example values):
 
 ```bash
 export PUBLIC_IP=203.0.113.10                # the host's public IPv4 address (on vmbr0)
-export TRANSFER_HOST=10.76.255.0            # transfer net /31: host side
-export TRANSFER_ROUTER=10.76.255.1          #                   router side (the site's network.wan.v4.address)
+export TRANSFER_HOST=10.76.255.0             # transfer net /31: host side
+export TRANSFER_ROUTER=10.76.255.1           #                   router side (the site's network.wan.v4.address)
 export TRANSFER6_HOST=fd12:3456:789a::       # optional, IPv6 transfer net /127: host side
 export TRANSFER6_ROUTER=fd12:3456:789a::1    #                                  router side (network.wan.v6.address)
 export ROUTER_VMID=100

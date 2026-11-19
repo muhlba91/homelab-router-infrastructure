@@ -1,8 +1,6 @@
-# Golden dumps of the shared fixtures (the two that the existing sites resemble; the fixtures of
-# new features are covered by tests/eval.nix): tests/dump.nix without `drv` (it changes with
-# every nixpkgs update), store-path hashes and versions stripped, as compact JSON. The
-# `golden-*` checks diff them against tests/golden/<fixture>.json; ./router golden rewrites
-# those files (pretty-printed by jq).
+# Golden dumps of the fixtures that the existing sites resemble: tests/dump.nix without `drv`,
+# store-path hashes and versions stripped, as compact JSON; `golden-*` checks diff them against
+# tests/golden/<fixture>.json (./router golden rewrites them).
 { lib, fixtures }:
 let
   dump = import ./dump.nix;

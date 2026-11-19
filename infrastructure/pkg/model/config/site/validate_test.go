@@ -69,6 +69,17 @@ func TestValidate(t *testing.T) {
 	peer := func(c *site.Config, p *site.BGPPeerConfig) {
 		c.BGP = &site.BGPConfig{ASN: 64512, Peers: []*site.BGPPeerConfig{p}}
 	}
+	forwards := func(v4, v6 bool) *site.ForwardConfig {
+		entry := []*site.ForwardEntryConfig{{Proto: "tcp", Ports: []int{80}, To: "10.0.0.2"}}
+		f := &site.ForwardConfig{}
+		if v4 {
+			f.V4 = entry
+		}
+		if v6 {
+			f.V6 = entry
+		}
+		return f
+	}
 	cases := map[string]struct {
 		mutate func(c *site.Config)
 		want   string
@@ -153,6 +164,16 @@ func TestValidate(t *testing.T) {
 		"bad service proto": {func(c *site.Config) {
 			c.Firewall = &site.FirewallConfig{Services: map[string]*site.ServiceConfig{"x": {Proto: ptr("sctp")}}}
 		}, "firewall.services.x.proto"},
+		"bridge interface too long": {func(c *site.Config) {
+			c.Network.LAN.Bridge = ptr(true)
+			c.Network.LAN.Interface = "0123456789"
+		}, "network.lan.interface"},
+		"hairpin v4 with dhcp wan": {func(c *site.Config) {
+			c.Firewall = &site.FirewallConfig{Hairpin: ptr(true), Forwards: forwards(true, false)}
+		}, "firewall.hairpin: needs a static network.wan.v4.address for firewall.forwards.v4"},
+		"hairpin v6 without wan v6": {func(c *site.Config) {
+			c.Firewall = &site.FirewallConfig{Hairpin: ptr(true), Forwards: forwards(false, true)}
+		}, "firewall.hairpin: needs a static network.wan.v6.address for firewall.forwards.v6"},
 		"no asn":          {func(c *site.Config) { c.BGP = &site.BGPConfig{} }, "bgp.asn"},
 		"peer incomplete": {func(c *site.Config) { peer(c, &site.BGPPeerConfig{Name: "p"}) }, "bgp.peers[0]"},
 		"bad peer policy": {func(c *site.Config) {
@@ -212,6 +233,93 @@ func TestValidateStaticWAN(t *testing.T) {
 	c.Network.WAN.V6 = &site.WANIPConfig{Method: "dhcp6"}
 
 	require.NoError(t, c.Validate())
+}
+
+func TestValidateBridgeInterface(t *testing.T) {
+	cases := map[string]struct {
+		iface   string
+		bridge  *bool
+		wantErr bool
+	}{
+		"bridge at the limit":    {"012345678", ptr(true), false},
+		"bridge over the limit":  {"0123456789", ptr(true), true},
+		"no bridge long name":    {"0123456789abcdef", nil, false},
+		"bridge false long name": {"0123456789abcdef", ptr(false), false},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := parse(t)
+			c.Network.LAN.Interface = tc.iface
+			c.Network.LAN.Bridge = tc.bridge
+
+			err := c.Validate()
+			if !tc.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "network.lan.interface")
+			assert.Contains(t, err.Error(), "at most 9 characters")
+		})
+	}
+}
+
+func TestValidateHairpin(t *testing.T) {
+	static := func() *site.WANIPConfig {
+		return &site.WANIPConfig{
+			Method:   "static",
+			IPConfig: site.IPConfig{Address: ptr("192.0.2.2"), Netmask: ptr(24)},
+		}
+	}
+	static6 := func() *site.WANIPConfig {
+		return &site.WANIPConfig{
+			Method:   "static",
+			IPConfig: site.IPConfig{Address: ptr("2001:db8::2"), Netmask: ptr(64)},
+		}
+	}
+	entry := []*site.ForwardEntryConfig{{Proto: "tcp", Ports: []int{80}, To: "10.0.0.2"}}
+	cases := map[string]struct {
+		hairpin *bool
+		v4, v6  []*site.ForwardEntryConfig
+		wanV4   *site.WANIPConfig
+		wanV6   *site.WANIPConfig
+		want    string
+	}{
+		"v4 forwards static v4": {hairpin: ptr(true), v4: entry, wanV4: static()},
+		"v6 forwards static v6": {hairpin: ptr(true), v6: entry, wanV4: static(), wanV6: static6()},
+		"no forwards dhcp":      {hairpin: ptr(true)},
+		"hairpin off dhcp":      {hairpin: ptr(false), v4: entry},
+		"hairpin unset dhcp":    {v4: entry},
+		"v4 forwards dhcp v4":   {hairpin: ptr(true), v4: entry, want: "network.wan.v4.address"},
+		"v6 forwards no wan v6": {hairpin: ptr(true), v6: entry, wanV4: static(), want: "network.wan.v6.address"},
+		"v6 forwards dhcp6 wan v6": {
+			hairpin: ptr(true), v6: entry, wanV4: static(),
+			wanV6: &site.WANIPConfig{Method: "dhcp6"}, want: "network.wan.v6.address",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := parse(t)
+			if tc.wanV4 != nil {
+				c.Network.WAN.V4 = tc.wanV4
+			}
+			c.Network.WAN.V6 = tc.wanV6
+			c.Firewall = &site.FirewallConfig{
+				Hairpin:  tc.hairpin,
+				Forwards: &site.ForwardConfig{V4: tc.v4, V6: tc.v6},
+			}
+
+			err := c.Validate()
+			if tc.want == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "firewall.hairpin: needs a static "+tc.want)
+		})
+	}
 }
 
 func TestValidateOnLink(t *testing.T) {

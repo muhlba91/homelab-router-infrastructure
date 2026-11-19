@@ -230,7 +230,7 @@
               pkgs.git
               pkgs.jq
               pkgs.yq-go # ./router libvirt-render: the YAML spec as JSON
-              pkgs.libvirt # virsh of ./router libvirt-deploy
+              pkgs.libvirt # virsh of ./router libvirt-deploy and ./router virsh
               pkgs.curl # the installer image of ./router libvirt-deploy
               pkgs.nixfmt
             ];

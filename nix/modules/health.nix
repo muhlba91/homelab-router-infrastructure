@@ -1,8 +1,6 @@
-# `router-health` (./router health, after every deploy): the BGP sessions are established
-# (given a minute: a deploy may restart FRR), no unit has failed; a pending reboot (the
-# booted kernel, initrd or modules are not the current system's) is a warning. Exits 1 on
-# a failure. With hypervisor.zfsDataset, a pool over 75% full or not ONLINE is a warning, an
-# unreadable one a failure.
+# `router-health` (./router health, after every deploy): BGP established, no failed unit, a pending
+# reboot is a warning; on server-zfs the pool `rpool` over 75% full or not ONLINE is a warning,
+# an unreadable one a failure. Exits 1 on a failure.
 {
   config,
   lib,
@@ -12,11 +10,10 @@
 }:
 let
   bgp = config.services.frr.bgpd.enable;
-  inherit (config.router.hypervisor) zfsDataset;
   # Appended to `rc=0`, so that the script of sites without the pool is unchanged.
-  poolCheck = lib.optionalString (config.router.hypervisor.enable && zfsDataset != null) (
+  poolCheck = lib.optionalString (config.router.hardware.profile == "server-zfs") (
     let
-      pool = lib.head (lib.splitString "/" zfsDataset);
+      pool = "rpool";
     in
     ''
 

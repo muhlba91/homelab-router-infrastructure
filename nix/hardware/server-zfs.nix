@@ -1,8 +1,6 @@
-# Hardware profile: a dedicated server with two NVMe disks (Hetzner, OVH; BIOS or UEFI). Both
-# disks hold a BIOS boot partition, an ESP and a ZFS partition; the pool `rpool` mirrors the
-# latter. GRUB is installed on both disks for BIOS and for the removable UEFI path of their
-# ESPs, so either disk boots the box under either firmware.
-# Selected by router.hardware.profile (= this file name); hand-written, never generated.
+# Hardware profile: a dedicated server with two NVMe disks in a ZFS mirror (docs/server.md).
+# Each disk holds a BIOS boot partition, an ESP and a ZFS partition; GRUB is on both (BIOS and
+# removable UEFI path), so either disk boots under either firmware.
 { config, lib, ... }:
 let
   cfg = config.router;

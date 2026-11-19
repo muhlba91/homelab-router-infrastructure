@@ -16,6 +16,10 @@ const (
 	// maxPrefixV4 and maxPrefixV6 are the longest prefix lengths of the address families.
 	maxPrefixV4 = 32
 	maxPrefixV6 = 128
+	// maxIfaceName is the longest interface name the kernel accepts; lanDummySuffix is appended to the LAN interface
+	// to name the dummy port of a bridged LAN.
+	maxIfaceName   = 15
+	lanDummySuffix = "-dummy"
 	// profileServerZFS is the hardware profile with two install disks; zfsDisks is their number.
 	profileServerZFS = "server-zfs"
 	zfsDisks         = 2
@@ -48,6 +52,7 @@ func (c *Config) Validate() error {
 	}
 	if c.Firewall != nil {
 		errs = append(errs, c.Firewall.validate()...)
+		errs = append(errs, c.validateHairpin()...)
 	}
 	if c.BGP != nil {
 		errs = append(errs, c.validateBGP()...)
@@ -197,6 +202,13 @@ func (l *LANConfig) validate() []error {
 		errs = append(errs, errors.New("network.lan: mac and interface are required"))
 	}
 
+	if defaults.GetOrDefault(l.Bridge, false) && len(l.Interface)+len(lanDummySuffix) > maxIfaceName {
+		errs = append(errs, fmt.Errorf(
+			"network.lan.interface: %q is too long for the bridge's dummy port (at most %d characters)",
+			l.Interface, maxIfaceName-len(lanDummySuffix),
+		))
+	}
+
 	if l.V4 == nil {
 		errs = append(errs, errors.New("network.lan.v4: required"))
 	} else {
@@ -292,6 +304,35 @@ func (f *FirewallConfig) validate() []error {
 			)
 		} else if s.Proto != nil && !slices.Contains([]string{"tcp", "udp", "both"}, *s.Proto) {
 			errs = append(errs, fmt.Errorf("firewall.services.%s.proto: %q is not tcp, udp or both", name, *s.Proto))
+		}
+	}
+
+	return errs
+}
+
+// validateHairpin checks that the hairpin has a static WAN address for each address family with forwards.
+func (c *Config) validateHairpin() []error {
+	if !defaults.GetOrDefault(c.Firewall.Hairpin, false) || c.Firewall.Forwards == nil || c.Network == nil ||
+		c.Network.WAN == nil {
+		return nil
+	}
+
+	var errs []error
+	for _, family := range []struct {
+		name    string
+		entries []*ForwardEntryConfig
+		wan     *WANIPConfig
+	}{
+		{"v4", c.Firewall.Forwards.V4, c.Network.WAN.V4},
+		{"v6", c.Firewall.Forwards.V6, c.Network.WAN.V6},
+	} {
+		static := family.wan != nil && family.wan.Method == methodStatic &&
+			family.wan.Address != nil && *family.wan.Address != ""
+		if len(family.entries) > 0 && !static {
+			errs = append(errs, fmt.Errorf(
+				"firewall.hairpin: needs a static network.wan.%s.address for firewall.forwards.%s",
+				family.name, family.name,
+			))
 		}
 	}
 

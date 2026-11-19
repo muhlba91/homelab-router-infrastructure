@@ -17,10 +17,11 @@ consumes.
 
 - [infrastructure/](infrastructure/): the Pulumi program (Go) that creates the per-site resources and renders the site data
 - [nix/](nix/): the NixOS router configuration (a flake): `modules/` (one module set for every site; the vars schema in
-  `modules/options/`), `hardware/`, `tests/` (checks, eval tests, fixtures), and the `router` and `nx` scripts
+  `modules/options/`), `hardware/`, `libvirt/` (the VM template and apply script), `tests/` (checks, eval tests,
+  fixtures), and the `router` and `nx` scripts
 - [docs/](docs/): [troubleshooting](docs/troubleshooting.md), [Proxmox](docs/proxmox.md) (host, router VM, first
-  install), [physical router](docs/physical.md) (bench install and swap), [VMs on a server](docs/libvirt.md),
-  [router validation](docs/validation.md) and the move from a public LAN IPv6 prefix to [ULA + NAT66](docs/ula-nat66.md)
+  install), [physical router](docs/physical.md) (bench install and swap), [dedicated server](docs/server.md),
+  [VMs on a server](docs/libvirt.md), [router validation](docs/validation.md) and the move from a public LAN IPv6 prefix to [ULA + NAT66](docs/ula-nat66.md)
 
 ---
 
@@ -156,8 +157,8 @@ only) are used.
 
 `./router` without arguments lists the commands: `sites`, `check`, `fmt`, `dump`, `golden` (rewrites the stored dumps
 of the shared fixtures, which a flake check compares), `push-secrets`, `deploy` (with magic rollback; skipped if
-current), `health` (failed units, BGP, a hypervisor's ZFS pool), `install` (nixos-anywhere; wipes the disk) and
-`ssh`, all run from `nix/`.
+current), `health` (failed units, BGP, a server's ZFS pool), `install` (nixos-anywhere; wipes the disk), `ssh`,
+`virsh` (on a server's host), `libvirt-render` and `libvirt-deploy` (a VM from a spec), all run from `nix/`.
 
 Secrets are never part of the configuration: they are files pushed to `/var/lib/secrets` on the router, where the
 configuration only declares their names, owners and modes.

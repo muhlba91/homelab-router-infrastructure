@@ -1,7 +1,6 @@
-# Fixture (documentation addresses only, never deployed): a dedicated server with two NVMe disks
-# in a ZFS mirror (profile server-zfs) acting as router and hypervisor: a /32 WAN address and
-# an IPv6 gateway outside the prefix (both on-link), a ULA LAN on a bridge with hairpin NAT,
-# SSH from the WAN, a serial console, no watchdog, automatic reboot.
+# Fixture (documentation addresses only, never deployed): a server-zfs router and hypervisor with
+# on-link WAN gateways, a ULA LAN on a bridge with hairpin NAT, SSH from the WAN, a serial
+# console, no watchdog, automatic reboot.
 {
   router = {
     meta.deployable = false;

@@ -101,9 +101,10 @@ in
       '';
       autoReboot = {
         enable = bool false ''
-          Reboot when the booted kernel, initrd or kernel modules differ from the current system
-          (a deploy activates everything else without a reboot; a change of `kernelParams` is not
-          detected). Off: a pending reboot is only reported by `router-health`.
+          Reboot when the booted kernel, initrd or kernel modules differ from those of the system
+          profile, the system that the next boot starts (a deploy activates everything else without
+          a reboot; a change of `kernelParams` is not detected). Off: a pending reboot is only
+          reported by `router-health`.
         '';
         window = strD "Mon 04:00" "When the reboot check runs (systemd `OnCalendar`).";
       };
