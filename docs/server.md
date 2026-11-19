@@ -58,16 +58,12 @@ fails in `grub-install` (it installs GRUB on both disks) and rolls back: replace
 
 ## Guests
 
-A guest repository defines its VMs as libvirt domains and manages them with `virsh` over SSH as the user `virt` (the
-keys of `deploy`); the workstation needs the `virsh` client:
+A guest repository keeps one spec per VM; `./router libvirt-deploy <site> <spec>` deploys it ([libvirt.md](libvirt.md)).
+`virsh` works over SSH as the user `virt` (the keys of `deploy`), e.g.
+`virsh -c qemu+ssh://virt@<management address>/system list`.
 
-```bash
-virsh -c qemu+ssh://virt@<management address>/system list
-```
-
-- Disks: zvols in the pool `guests` (`rpool/guests`, quota 360 GiB; the ARC caches metadata only). Create them sparse:
-  `virsh vol-create-as guests <name> <size> --allocation 0` (the volblocksize is the OpenZFS default of 16K).
+- Disks: zvols in the pool `guests` (`rpool/guests`, quota 360 GiB; the ARC caches metadata only), created sparse (the
+  volblocksize is the OpenZFS default of 16K).
 - Installer images: the directory pool `iso`.
 - Network: a bridge interface on `lan0`; libvirt defines no networks.
-- Firmware: `<os firmware='efi'>` with Secure Boot off selects OVMF and keeps the NVRAM per domain.
 - On shutdown the guests get an ACPI shutdown and 300 s.

@@ -1,0 +1,65 @@
+<domain type='kvm'>
+  <name>fixture-vm</name>
+  <memory unit='GiB'>16</memory>
+  <vcpu placement='static'>8</vcpu>
+  <os firmware='efi'>
+    <type arch='x86_64' machine='q35'>hvm</type>
+    <firmware>
+      <feature enabled='no' name='enrolled-keys'/>
+      <feature enabled='no' name='secure-boot'/>
+    </firmware>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+  </features>
+  <cpu mode='host-passthrough'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>restart</on_crash>
+  <devices>
+    <controller type='scsi' model='virtio-scsi'/>
+    <disk type='volume' device='disk'>
+      <driver name='qemu' type='raw' cache='none' io='native' discard='unmap'/>
+      <source pool='guests' volume='fixture-vm-disk0'/>
+      <target dev='sda' bus='scsi'/>
+      <serial>drive-scsi0</serial>
+      <boot order='1'/>
+    </disk>
+    <disk type='volume' device='disk'>
+      <driver name='qemu' type='raw' cache='none' io='native' discard='unmap'/>
+      <source pool='guests' volume='fixture-vm-disk1'/>
+      <target dev='sdb' bus='scsi'/>
+      <serial>drive-scsi1</serial>
+    </disk>
+    <disk type='volume' device='disk'>
+      <driver name='qemu' type='raw' cache='none' io='native' discard='unmap'/>
+      <source pool='guests' volume='fixture-vm-disk2'/>
+      <target dev='sdc' bus='scsi'/>
+      <serial>drive-scsi2</serial>
+    </disk>
+    <disk type='volume' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source pool='iso' volume='installer-1.0.iso'/>
+      <target dev='sdz' bus='sata'/>
+      <address type='drive' controller='0' bus='0' target='0' unit='0'/>
+      <readonly/>
+      <boot order='2'/>
+    </disk>
+    <interface type='bridge'>
+      <mac address='bc:24:11:00:00:01'/>
+      <source bridge='lan0'/>
+      <model type='virtio'/>
+    </interface>
+    <channel type='unix'>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+    </channel>
+    <graphics type='vnc' autoport='yes' listen='127.0.0.1'>
+      <listen type='address' address='127.0.0.1'/>
+    </graphics>
+    <video>
+      <model type='vga'/>
+    </video>
+    <memballoon model='none'/>
+  </devices>
+</domain>

@@ -1,0 +1,16 @@
+---
+# A VM on a server (docs/libvirt.md): copy to the VM's repository as libvirt/<name>.yml.
+name: example-vm
+vcpu: 4
+# GiB
+memory: 8
+mac: "02:00:00:00:00:01"
+# GiB each, applied when a disk is created; the first one boots
+disks:
+  - size: 64
+  - size: 128
+# optional installer image: remove it from the spec after the install
+iso:
+  url: https://example.org/installer-1.0.iso
+  name: installer-1.0.iso
+  # sha256: "<hex>" (keep the quotes)

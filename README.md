@@ -19,8 +19,8 @@ consumes.
 - [nix/](nix/): the NixOS router configuration (a flake): `modules/` (one module set for every site; the vars schema in
   `modules/options/`), `hardware/`, `tests/` (checks, eval tests, fixtures), and the `router` and `nx` scripts
 - [docs/](docs/): [troubleshooting](docs/troubleshooting.md), [Proxmox](docs/proxmox.md) (host, router VM, first
-  install), [physical router](docs/physical.md) (bench install and swap), [router validation](docs/validation.md) and
-  the move from a public LAN IPv6 prefix to [ULA + NAT66](docs/ula-nat66.md)
+  install), [physical router](docs/physical.md) (bench install and swap), [VMs on a server](docs/libvirt.md),
+  [router validation](docs/validation.md) and the move from a public LAN IPv6 prefix to [ULA + NAT66](docs/ula-nat66.md)
 
 ---
 
@@ -204,7 +204,8 @@ IPv6 follows the same host parts inside the site's prefix (`::1` router, `::1:1:
 - `make test` (in `infrastructure/`): the Go tests, including a render of every site file and of the site template
   (as the site `site`) under Pulumi mocks; `RENDER_DIR=<dir>` keeps the rendered files.
 - `./router check` (in `nix/`): the flake checks, see [checks.nix](nix/tests/checks.nix): lint, eval tests on the
-  fixtures, stored dumps of the shared fixtures (`golden-*`; `./router golden` rewrites them after an intended change),
+  fixtures, stored dumps of the shared fixtures and the VM domain XML (`golden-*`; `./router golden` rewrites them after
+  an intended change),
   and per site the tools' own checks of its nftables, radvd, Kea and FRR configuration.
 - Both together check the whole chain from the site files to the router configuration:
 

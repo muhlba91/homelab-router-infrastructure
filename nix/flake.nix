@@ -156,6 +156,10 @@
         fixtures = hostsIn ./tests/sites;
       };
 
+      # A VM of a server: spec -> { name, xml, volumes, iso } (libvirt/domain.nix).
+      libvirtDomain = spec: import ./libvirt/domain.nix { inherit lib spec; };
+      fixtureLibvirt = (self.libvirtDomain (import ./tests/libvirt/fixture.nix)).xml;
+
       # `deploy .#<site>` (use ./router deploy <site>). The first install of a new box
       # is `nixos-anywhere` (./router install <site>), not deploy-rs.
       deploy.nodes = lib.genAttrs deployableSites (site: {
@@ -184,6 +188,7 @@
           # The eval tests always use the fixtures, whatever `sites` is overridden with.
           fixtures = hostsIn ./tests/sites;
           inherit (self) deploy;
+          libvirtFixtureXml = self.fixtureLibvirt;
           deploySchema = deploy-rs + "/interface.json";
           src = lib.fileset.toSource {
             root = ./.;
@@ -194,6 +199,7 @@
               ./nx
               ./secrets-sync.sh
               ./ssh-setup.sh
+              ./libvirt/apply.sh
             ];
           };
         }
@@ -223,6 +229,9 @@
               pkgs.openssh # ssh/nix copy to the router (also inside the ./nx container)
               pkgs.git
               pkgs.jq
+              pkgs.yq-go # ./router libvirt-render: the YAML spec as JSON
+              pkgs.libvirt # virsh of ./router libvirt-deploy
+              pkgs.curl # the installer image of ./router libvirt-deploy
               pkgs.nixfmt
             ];
           };

@@ -23,6 +23,8 @@ let
       lib.filter (a: !a.assertion) (system.extendModules { modules = [ module ]; }).config.assertions
     );
   with' = system: module: system.extendModules { modules = [ module ]; };
+  domain = spec: import ../libvirt/domain.nix { inherit lib spec; };
+  vm = import ./libvirt/fixture.nix;
   rules = s: s.config.networking.nftables.tables.router.content;
   nat4 = s: s.config.networking.nftables.tables.nat4.content;
   has = text: lib.hasInfix text;
@@ -1175,5 +1177,99 @@ lib.runTests {
           noNetworks = true;
         };
       };
+    };
+
+  # The libvirt domain of a VM spec (libvirt/domain.nix): the conventions of every VM and the
+  # volumes that ./router libvirt-deploy creates; a wrong spec fails evaluation.
+  testLibvirtDomain =
+    let
+      d = domain vm;
+      noIso = domain (removeAttrs vm [ "iso" ]);
+    in
+    {
+      expr = {
+        inherit (d) volumes;
+        # the disks come first, the image behind them on SATA; the first disk boots
+        serials = lib.length (lib.splitString "<serial>drive-scsi" d.xml) - 1;
+        cdrom = has "<target dev='sdz' bus='sata'/>" d.xml;
+        bootOrder = [
+          (has "<boot order='1'/>" d.xml)
+          (has "<boot order='2'/>" d.xml)
+        ];
+        mac = has "<mac address='bc:24:11:00:00:01'/>" d.xml;
+        bridge = has "<source bridge='lan0'/>" d.xml;
+        vnc = has "listen='127.0.0.1'" d.xml;
+        efi = has "<os firmware='efi'>" d.xml;
+        noImage = !(has "cdrom" noIso.xml);
+      };
+      expected = {
+        volumes = [
+          {
+            name = "fixture-vm-disk0";
+            size = 64;
+          }
+          {
+            name = "fixture-vm-disk1";
+            size = 128;
+          }
+          {
+            name = "fixture-vm-disk2";
+            size = 128;
+          }
+        ];
+        serials = 3;
+        cdrom = true;
+        bootOrder = [
+          true
+          true
+        ];
+        mac = true;
+        bridge = true;
+        vnc = true;
+        efi = true;
+        noImage = true;
+      };
+    };
+
+  testLibvirtDomainInvalid =
+    let
+      invalid = [
+        (vm // { name = "Bad Name"; })
+        (vm // { mac = "BC:24:11:00:00:01"; })
+        (vm // { mac = "bd:24:11:00:00:01"; })
+        (vm // { disks = [ ]; })
+        (vm // { disks = lib.genList (_: { size = 1; }) 21; })
+        (vm // { vcpu = 0; })
+        (vm // { memroy = 1; })
+        (removeAttrs vm [ "memory" ])
+        (
+          vm
+          // {
+            iso = vm.iso // {
+              url = "http://example.org/a.iso";
+            };
+          }
+        )
+        (
+          vm
+          // {
+            iso = vm.iso // {
+              sha256 = "xyz";
+            };
+          }
+        )
+        (
+          vm
+          // {
+            iso = vm.iso // {
+              name = "-x.iso";
+            };
+          }
+        )
+      ];
+    in
+    {
+      expr = map (s: (builtins.tryEval (domain s).xml).success) invalid;
+      expected = map (_: false) invalid;
     };
 }
