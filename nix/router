@@ -10,6 +10,9 @@
 #   ./router fmt                         format all .nix files (nixfmt, the flake's formatter)
 #   ./router dump <site>                 evaluated config as JSON (diff before/after a refactor)
 #   ./router golden                      rewrite tests/golden/ (the dumps the golden-* checks compare)
+#   ./router libvirt-render <spec>       the libvirt domain XML of a VM spec (libvirt/template.yml)
+#   ./router libvirt-deploy <site> <spec>  create the VM's missing volumes and image on the site's host, define,
+#                                        autostart and start it (idempotent; deletes nothing; a running VM keeps running)
 #   ./router push-secrets <site>         deliver $OUTPUTS/keys/<site>/secrets/ to the router
 #   ./router deploy <site> [deploy args] push secrets, then deploy-rs (magic rollback); without
 #                                        args, skipped if the router already runs this system
@@ -80,8 +83,20 @@ push_secrets() {
     sh "$src" "$MGMT" "$sync" "$SECRETS_DIR" "${2:-}"
 }
 
+# A VM spec as the flake's libvirtDomain evaluates it: JSON {name, xml, volumes, iso}.
+libvirt_info() {
+  case $1 in /*) spec=$1 ;; *) spec=$start/$1 ;; esac
+  [ -f "$spec" ] || die "no VM spec at $1"
+  err=$(mktemp)
+  # The container's shell converts the spec (passed as text) and hands it to Nix.
+  # shellcheck disable=SC2016 # expanded by that shell
+  ./nx sh -c 'SPEC=$(printf "%s" "$1" | yq -o=json) nix eval --impure --json --apply "f: f (builtins.fromJSON (builtins.getEnv \"SPEC\"))" path:.#libvirtDomain' \
+    sh "$(cat "$spec")" 2>"$err" || { cat "$err" >&2; exit 1; }
+  rm -f "$err"
+}
+
 cmd=${1:-}; site=${2:-}
-case "$cmd" in sites | check | fmt | golden) ;; *) [ -n "$site" ] || usage; shift 2 ;; esac
+case "$cmd" in sites | check | fmt | golden | libvirt-render) ;; *) [ -n "$site" ] || usage; shift 2 ;; esac
 case "$cmd" in
   sites)
     ev --raw .#routerSites ;;
@@ -94,7 +109,17 @@ case "$cmd" in
     mkdir -p tests/golden
     for f in $(ev --raw --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)' .#fixtureGolden); do
       ev --raw ".#fixtureGolden.\"$f\"" | ./nx jq -S . > "tests/golden/$f.json"
-    done ;;
+    done
+    ev --raw .#fixtureLibvirt > tests/golden/libvirt-fixture.xml ;;
+  libvirt-render)
+    spec=$site; [ -n "$spec" ] || usage
+    info=$(libvirt_info "$spec")
+    printf '%s' "$info" | ./nx jq -r .xml ;;
+  libvirt-deploy)
+    target "$site"
+    [ -n "${1:-}" ] || usage
+    info=$(libvirt_info "$1")
+    ./nx sh libvirt/apply.sh "qemu+ssh://virt@$MGMT/system" "$info" ;;
   dump)
     ev --json ".#routerDump.\"$site\"" ;;
   push-secrets)

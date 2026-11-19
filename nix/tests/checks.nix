@@ -1,7 +1,7 @@
 # Flake checks (`nix flake check`, ./router check), offline and without capabilities, with
 # the tools of the checking system (the configurations are only evaluated, never built):
 #   lint          nixfmt (same as `nix fmt`), deadnix (unused code), statix (statix.toml),
-#                 shellcheck (router, nx, secrets-sync.sh, ssh-setup.sh), SECRETS_DIR of ./router
+#                 shellcheck (router, nx, secrets-sync.sh, ssh-setup.sh, libvirt/apply.sh), SECRETS_DIR of ./router
 #                 equal to the one of modules/secrets.nix
 #   deploy-schema the deploy-rs nodes against deploy-rs' schema (its own check would build
 #                 every system: the profile paths are store paths of the routers)
@@ -12,6 +12,8 @@
 #   eval          tests/eval.nix on the fixtures (lib.runTests; prints the failing tests)
 #   golden-<name> the dump of a shared fixture against tests/golden/<name>.json (tests/golden.nix);
 #                 fails when a change alters it (intended: ./router golden)
+#   golden-libvirt-fixture  the domain XML of tests/libvirt/fixture.nix against tests/golden/libvirt-fixture.xml
+#   libvirt-template        libvirt/template.yml is valid YAML
 {
   pkgs,
   lib,
@@ -20,6 +22,7 @@
   fixtures,
   deploy,
   deploySchema,
+  libvirtFixtureXml,
 }:
 let
   # A file with text of the evaluated configuration, without its store paths: they belong
@@ -98,6 +101,19 @@ let
     '';
 in
 {
+  golden-libvirt-fixture = pkgs.runCommand "check-golden-libvirt-fixture" { } ''
+    diff -u ${./golden/libvirt-fixture.xml} ${pkgs.writeText "libvirt-fixture.xml" libvirtFixtureXml} \
+      || { echo "golden-libvirt-fixture differs: if intended, run ./router golden and commit"; exit 1; }
+    touch $out
+  '';
+
+  libvirt-template =
+    pkgs.runCommand "check-libvirt-template" { nativeBuildInputs = [ pkgs.yq-go ]; }
+      ''
+        yq . ${../libvirt/template.yml} > /dev/null
+        touch $out
+      '';
+
   eval = pkgs.runCommand "check-eval" { } (
     if evalFailures == [ ] then
       "echo 'ok   eval tests'; touch $out"
@@ -130,7 +146,7 @@ in
         echo "ok   deadnix"
         statix check .
         echo "ok   statix"
-        shellcheck router nx secrets-sync.sh ssh-setup.sh
+        shellcheck router nx secrets-sync.sh ssh-setup.sh libvirt/apply.sh
         echo "ok   shellcheck"
         want=$(sed -n 's/^SECRETS_DIR=\([^ ]*\).*/\1/p' router)
         [ -n "$want" ] && [ "$want" = "$(sed -n 's/^ *dir = "\([^"]*\)";.*/\1/p' modules/secrets.nix)" ] \
