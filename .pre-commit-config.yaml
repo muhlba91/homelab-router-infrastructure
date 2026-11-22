@@ -23,7 +23,7 @@ repos:
         ]
       - id: detect-private-key
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.0
+    rev: v8.30.1
     hooks:
       - id: gitleaks
   # The Go module lives in infrastructure/ (the upstream hook runs at the repository root);
