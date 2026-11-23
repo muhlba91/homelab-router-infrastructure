@@ -5,8 +5,11 @@ lockfile = true
 lockfile_platforms = ["macos-arm64", "linux-x64", "linux-arm64"]
 
 [tools]
+actionlint = "1.7.12"
 fnox = { version = "v1.50.0", workflow = "release.yml" }
 go = "1.27.4"
 golangci-lint = "2.15.0"
+"npm:markdownlint-cli2" = "0.24.2"
 pulumi = "3.277.0"
+shellcheck = "0.11.0"
 vault = "2.2.2"

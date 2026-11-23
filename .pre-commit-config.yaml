@@ -37,3 +37,25 @@ repos:
         files: ^infrastructure/.*\.go$
         pass_filenames: false
         require_serial: true
+      # shellcheck, actionlint, markdownlint-cli2 and yamllint: the local hooks use the tools on PATH
+      # (shellcheck, actionlint and markdownlint-cli2 pinned in mise.toml; yamllint is not, YAML-04).
+      - id: shellcheck
+        name: shellcheck
+        language: system
+        entry: shellcheck
+        types: [shell]
+      - id: actionlint
+        name: actionlint
+        language: system
+        entry: actionlint
+        files: ^\.github/workflows/.*\.ya?ml$
+      - id: markdownlint
+        name: markdownlint-cli2
+        language: system
+        entry: markdownlint-cli2
+        types: [markdown]
+      - id: yamllint
+        name: yamllint
+        language: system
+        entry: yamllint
+        types: [yaml]
