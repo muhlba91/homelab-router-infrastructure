@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/KitStream/netbird-pulumi-provider/sdk/go/netbird v0.0.0-20260919191558-542a8c184da4
-	github.com/muhlba91/pulumi-shared-library v0.0.0-20261125064111-447f91130882
+	github.com/muhlba91/pulumi-shared-library v0.0.0-20261126013706-050e99063841
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3
 	github.com/pulumi/pulumi/sdk/v3 v3.278.0
 	github.com/rs/zerolog v1.35.1
